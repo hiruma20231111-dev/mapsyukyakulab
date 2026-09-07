@@ -126,18 +126,10 @@ export default function Page() {
 
   return (
     <div className="app">
-      {tab === "home" && (aiMode ? <HomeAI msgs={msgs} busy={busy} ask={ask} answered={answered} /> : <HomeN setTab={setTab} />)}
+      {tab === "home" && (aiMode ? <HomeAI msgs={msgs} busy={busy} ask={ask} input={input} setInput={setInput} setTab={setTab} /> : <HomeN setTab={setTab} />)}
       {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} background={background} setBackground={setBackground} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
       {tab === "consult" && <Consult cfg={cfg} result={result} answered={answered} background={background} setTab={setTab} />}
-
-      {aiMode && tab === "home" ? (
-        <div className="inbar">
-          <input value={input} onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && ask(input)} placeholder={busy ? "考え中…" : "質問を入力…"} />
-          <button onClick={() => ask(input)} disabled={busy}>➤</button>
-        </div>
-      ) : null}
 
       <nav className="tabbar">
         {[["home", aiMode ? "🤖" : "🏠", aiMode ? "AI" : "ホーム"], ["diag", "🔍", "診断"], ["guide", "📚", "ガイド"], ["consult", "💬", "相談"]]
@@ -195,26 +187,34 @@ function HomeN({ setTab }) {
   );
 }
 
-function HomeAI({ msgs, busy, ask, answered }) {
-  const chips = ["カテゴリの選び方は?", "写真は何を何枚?", "投稿は何を書けばいい?", "クチコミ返信のコツ", "オーナー登録のやり方"];
+function HomeAI({ msgs, busy, ask, input, setInput, setTab }) {
+  const chips = ["カテゴリの選び方は？", "写真は何を何枚？", "投稿は何を書けばいい？", "Ask Mapsって何？", "オーナー登録のやり方", "サイテーションとは？"];
   return (
     <>
-      <div className="aihero">
+      <div className="aihero fadein">
         <Gear />
         <div className="b">📍 マップ集客ラボ ・ AIアシスタント</div>
-        <h1>GBPのこと、なんでも聞いて</h1>
-        <span className="badge" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }}>🤖 Gemini連携中</span>
+        <h1>GBP・マップ集客の<br />“なんでも”質問箱</h1>
+        <p style={{ fontSize: 12, opacity: .9, marginTop: 4 }}>用語・やり方・考え方など、気になることを何でも。</p>
       </div>
       <div className="chat">
         {msgs.length === 0 && (
-          <div className="msg a">こんにちは！Googleビジネスプロフィール（GBP）やマップ集客のこと、なんでも聞いてください。下のボタンからでもどうぞ。</div>
+          <div className="msg a">こんにちは！GBP・Googleマップ集客の“わからない”に何でも答えます。<br />
+            👉 <b>あなたのお店の弱点や次の一手</b>を相談したいときは、下の「💬 相談」タブ（診断ベースの改善コンサル）へどうぞ。</div>
         )}
-        {msgs.map((m, i) => <div key={i} className={"msg " + (m.role === "user" ? "u" : "a")}>{m.text}</div>)}
-        {busy && <div className="msg a">…</div>}
+        {msgs.map((m, i) => <div key={i} className={"msg " + (m.role === "user" ? "u" : "a")}>{m.role === "assistant" ? <div>{renderMd(m.text)}</div> : m.text}</div>)}
+        {busy && <div className="msg a"><div className="typing">考え中<span>.</span><span>.</span><span>.</span></div></div>}
       </div>
       <div className="chips">
-        {answered >= 5 && <div className="chip" onClick={() => ask("私の診断結果（弱点TOP3）を解説して、直し方を教えて", true)}>📊 私の弱点TOP3を解説して</div>}
         {chips.map((c) => <div key={c} className="chip" onClick={() => ask(c)}>{c}</div>)}
+        <div className="chip" style={{ background: "#e7f6f3", color: "var(--teal2)", fontWeight: 700 }} onClick={() => setTab("consult")}>💬 診断ベースで相談する ›</div>
+      </div>
+      <div className="sec" style={{ paddingTop: 0 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input className="kv" value={input} onChange={(e) => setInput(e.target.value)} placeholder={busy ? "考え中…" : "質問を自由に入力…"}
+            onKeyDown={(e) => e.key === "Enter" && ask(input)} />
+          <button className="btn p" style={{ width: "auto", padding: "0 16px" }} onClick={() => ask(input)} disabled={busy}>➤</button>
+        </div>
       </div>
     </>
   );
