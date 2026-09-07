@@ -312,26 +312,22 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, bac
             <div className="note">※簡易セルフ診断です。カンリーの公式AI診断（13万店舗DB基準）とは別物です。</div>
           </div>
 
-          {/* AIコンサルの総評（主役） */}
+          {/* AIコンサルの総評（主役・同カード内にボタン→結果） */}
           {hasKey ? (
             <>
               <h2>🩺 AIコンサルの総評</h2>
-              {!aiDiag.text && !aiDiag.loading && (
-                <div className="card">
+              <div className="card">
+                {!aiDiag.text && !aiDiag.loading && (
                   <p style={{ fontSize: 13, margin: "0 0 10px" }}>あなたの回答{background ? "とリンク背景" : ""}をもとに、「何が良くて・何が課題か → なぜか」をプロ視点で解説します。</p>
-                  <button className="btn p glow" onClick={runAIDiagnose} disabled={!allDone}>
-                    {allDone ? "🩺 AIに総評してもらう" : `あと${total - answered}問 答えると受けられます`}
-                  </button>
-                </div>
-              )}
-              {aiDiag.loading && <div className="card"><div className="typing">🔎 AIが分析中<span>.</span><span>.</span><span>.</span></div></div>}
-              {aiDiag.err && <div className="verdict bad">⚠️ {aiDiag.err}</div>}
-              {aiDiag.text && (
-                <>
-                  <div className="aidoc pop">{renderMd(aiDiag.text)}</div>
-                  <button className="btn p" style={{ marginTop: 4 }} onClick={() => setTab("consult")}>💬 このまま相談を続ける ›</button>
-                </>
-              )}
+                )}
+                <button className="btn p glow" onClick={runAIDiagnose} disabled={!allDone || aiDiag.loading}>
+                  {aiDiag.loading ? "🔎 分析中…" : aiDiag.text ? "🔄 もう一度みてもらう" : allDone ? "🩺 AIに総評してもらう" : `あと${total - answered}問 答えると受けられます`}
+                </button>
+                {aiDiag.loading && <div className="typing" style={{ marginTop: 12 }}>🔎 AIが分析中<span>.</span><span>.</span><span>.</span></div>}
+                {aiDiag.err && <div className="verdict bad" style={{ marginTop: 12 }}>⚠️ {aiDiag.err}</div>}
+                {aiDiag.text && <div className="airesult fadein">{renderMd(aiDiag.text)}</div>}
+                {aiDiag.text && <button className="btn s" style={{ marginTop: 12 }} onClick={() => setTab("consult")}>💬 このまま相談を続ける ›</button>}
+              </div>
             </>
           ) : (
             <div className="note">💡 設定でGeminiキーを入れると、<b>AIコンサルが「総評→なぜ→次の一手」まで</b>解説します。</div>
@@ -498,8 +494,10 @@ function renderMd(text) {
   const s = String(text ?? "");
   const bold = (str) => str.split(/(\*\*[^*]+\*\*)/g).map((p, i) =>
     p.startsWith("**") && p.endsWith("**") ? <strong key={i}>{p.slice(2, -2)}</strong> : <span key={i}>{p}</span>);
+  const SEC = /^\s*(#{1,6}\s*)?(\d+[.)]\s*)?(🩺|🎯|🛠️|🛠|📈|⚠️|⚠|✅|💡|📌|🔎|🏆)\s*/;
   return s.split("\n").map((ln, i) => {
     const t = ln.trimEnd();
+    if (SEC.test(t) && t.replace(SEC, "").length <= 24) return <div key={i} className="mdh">{bold(t.replace(/^#{1,6}\s/, "").replace(/^\s*\d+[.)]\s*/, ""))}</div>;
     if (/^#{1,6}\s/.test(t)) return <div key={i} className="mdh">{bold(t.replace(/^#{1,6}\s/, ""))}</div>;
     if (/^\s*[-*・]\s/.test(t)) return <div key={i} className="mdli">{bold(t.replace(/^\s*[-*・]\s/, ""))}</div>;
     if (/^\s*\d+[.)]\s/.test(t)) return <div key={i} className="mdli">{bold(t.replace(/^\s*\d+[.)]\s/, ""))}</div>;
