@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import "./globals.css";
-import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY } from "./data";
+import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY, ACTIONS, guideKeyForItem } from "./data";
 
 // 用語解説（?ボタン → タップで表示、×で閉じる）
 function Info({ k, children }) {
@@ -109,7 +109,7 @@ export default function Page() {
       {tab === "home" && (aiMode ? <HomeAI msgs={msgs} busy={busy} ask={ask} answered={answered} /> : <HomeN setTab={setTab} />)}
       {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
-      {tab === "consult" && <Consult />}
+      {tab === "consult" && <Consult result={result} answered={answered} hasKey={aiMode} setTab={setTab} setGsel={setGsel} onAskAI={(q) => { setTab("home"); setTimeout(() => ask(q, true), 60); }} />}
 
       {aiMode && tab === "home" ? (
         <div className="inbar">
@@ -217,7 +217,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg }) {
       const d = await r.json();
       if (d.error) setPerr(d.error);
       else if (d.found) {
-        setInfo(d.info);
+        setInfo({ ...d.info, _query: d.query });
         const merged = { ...answers };
         for (const [k, v] of Object.entries(d.auto)) if (v != null) merged[k] = v;
         setAnswers(merged);
@@ -367,27 +367,81 @@ function GuideScreen({ gsel, setGsel }) {
   );
 }
 
-function Consult() {
+function Consult({ result, answered, hasKey, setTab, setGsel, onAskAI }) {
+  const [checked, setChecked] = useState({});
+  const done = answered >= 6;
+  const plan = done ? result.weak : [];
+
+  const askPlan = () => {
+    const w = plan.map((it) => ACTIONS[it.k]).filter(Boolean).join("、");
+    onAskAI(`私の診断（総合${result.total}点）の弱点は「${w}」でした。何から手をつければいいか、具体的なやり方を教えてください。`);
+  };
+
   return (
     <>
       <div className="hero" style={{ paddingBottom: 18 }}>
         <Gear />
-        <div className="brand">💬 相談</div>
-        <h1 style={{ fontSize: 20 }}>もっと本格的にやるなら</h1>
+        <div className="brand">💬 相談・次の一手</div>
+        <h1 style={{ fontSize: 20 }}>{done ? "あなたの改善プラン" : "まず診断してみましょう"}</h1>
       </div>
+
+      {!done ? (
+        <div className="sec">
+          <div className="card">
+            <p style={{ fontSize: 13.5, margin: "0 0 12px" }}>診断すると、あなたのお店に合わせた「やることリスト」がここに出ます。</p>
+            <button className="btn p" onClick={() => setTab("diag")}>🔍 セルフ診断をする</button>
+          </div>
+        </div>
+      ) : (
+        <div className="sec">
+          <h2>✅ 優先してやること（弱点から）</h2>
+          <div className="card">
+            {plan.map((it) => (
+              <div key={it.k} style={{ display: "flex", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--line)", alignItems: "flex-start" }}>
+                <input type="checkbox" checked={!!checked[it.k]} onChange={() => setChecked({ ...checked, [it.k]: !checked[it.k] })}
+                  style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: "#0e9f8e" }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, textDecoration: checked[it.k] ? "line-through" : "none", color: checked[it.k] ? "var(--mut)" : "var(--ink)" }}>
+                    {ACTIONS[it.k]}
+                  </div>
+                  <button className="weak" style={{ background: "none", border: "none", padding: "4px 0 0", color: "var(--teal2)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                    onClick={() => { setGsel(guideKeyForItem(it)); setTab("guide"); }}>
+                    📚 やり方をガイドで見る ›
+                  </button>
+                </div>
+              </div>
+            ))}
+            <div className="note" style={{ marginTop: 10 }}>上から順に1つずつでOK。チェックして進めましょう。</div>
+          </div>
+
+          {hasKey ? (
+            <>
+              <h2>🤖 AIに相談する</h2>
+              <div className="card">
+                <p style={{ fontSize: 13, margin: "0 0 10px" }}>診断結果をもとに、AIが「何からどう直すか」を一緒に考えます。</p>
+                <button className="btn p" onClick={askPlan}>🤖 この結果でAIに相談する</button>
+              </div>
+            </>
+          ) : (
+            <div className="note">💡 設定でGeminiキーを入れると、この結果をもとに<b>AIに相談</b>できます。</div>
+          )}
+        </div>
+      )}
+
       <div className="sec">
-        <p style={{ fontSize: 13, color: "var(--mut)", margin: "0 0 12px" }}>
-          「やることは分かったけど、続ける時間がない…」というときは、こんな頼り方があります。
-        </p>
-        <div className="role ext"><span className="tag">まかせる</span>
-          <h3>🤖 更新を自動でおまかせ</h3>
-          <p>止まりがちな「お知らせ（投稿）・クチコミ返信・写真の更新」を代わりに続けてもらう方法。お店は最終チェックだけ。</p></div>
-        <div className="role hum"><span className="tag">高める</span>
-          <h3>🙂 来店体験を良くして“書きたくなる”状態に</h3>
-          <p>来店から帰るまでの満足度を高めることで、自然とクチコミが生まれ、次のお客さんにもつながる、という考え方。</p></div>
-        <div className="note">
-          お店の時間は“お客さんの満足”に集中し、集客の作業は必要に応じて外に頼る——という役割分担です。
-          こうしたサポートを提供している会社もあります（例：カンリー）。押し売りはしません。まずは現在地の確認から。
+        <h2>👤 プロに任せたいとき</h2>
+        <div className="card">
+          <p style={{ fontSize: 13.5, margin: "0 0 8px" }}>
+            「やることは分かったけど、続ける時間がない…」というときは、集客まわりの更新を代わりに続けてもらう頼り方もあります（更新の代行、来店体験づくりのサポートなど）。
+          </p>
+          <p style={{ fontSize: 12.5, color: "var(--mut)", margin: "0 0 12px" }}>
+            お店の時間は“お客さんの満足”に集中し、集客の作業は必要に応じて外に頼る——という役割分担です。押し売りはしません。
+          </p>
+          <a className="btn p" style={{ display: "block", textAlign: "center", textDecoration: "none" }}
+            href="https://can-ly.com/" target="_blank" rel="noreferrer">
+            📩 相談してみる（カンリー）
+          </a>
+          <div className="note">※ 外部サイト（カンリー）が開きます。まずは相談だけでもOKです。</div>
         </div>
       </div>
     </>
