@@ -385,7 +385,7 @@ function GuideScreen({ gsel, setGsel }) {
             <button className="btn s" style={{ marginBottom: 12 }} onClick={() => setGsel(null)}>← 一覧へ</button>
             <div className="card gdetail">
               <div style={{ fontSize: 22 }}>{g.emo}</div>
-              {g.shot ? <Shot src={g.shot.src} box={g.shot.box} cap={g.shot.cap} /> : <HowTo hilite={g.hilite} title="お店のページ" />}
+              {g.shot && <Shot src={g.shot.src} box={g.shot.box} cap={g.shot.cap} />}
               <dt style={{ fontWeight: 800, fontSize: 13, marginTop: 6 }}>やり方（手順）</dt>
               <ol className="steps">{g.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
               <dl>
@@ -494,3 +494,17 @@ function Consult({ cfg, result, answered, background, setTab }) {
 
 function gradeColor(t) { return t >= 80 ? "#0e9f8e" : t >= 65 ? "#e0a13a" : "#e0574a"; }
 function verdictText(t) { return t >= 80 ? "土台◎、しっかり運用できています" : t >= 65 ? "土台は◎、運用に伸びしろ" : t >= 50 ? "土台◎、運用が止まっています→再稼働を" : "まず土台の整備から始めましょう"; }
+
+// Geminiのmarkdown回答を簡易レンダリング（**太字** / 見出し / 箇条書き）
+function renderMd(text) {
+  const s = String(text ?? "");
+  const bold = (str) => str.split(/(\*\*[^*]+\*\*)/g).map((p, i) =>
+    p.startsWith("**") && p.endsWith("**") ? <strong key={i}>{p.slice(2, -2)}</strong> : <span key={i}>{p}</span>);
+  return s.split("\n").map((ln, i) => {
+    const t = ln.trimEnd();
+    if (/^#{1,6}\s/.test(t)) return <h4 key={i} style={{ margin: "12px 0 4px", fontSize: 15 }}>{bold(t.replace(/^#{1,6}\s/, ""))}</h4>;
+    if (/^\s*[-*・]\s/.test(t)) return <div key={i} style={{ paddingLeft: 14, position: "relative", margin: "3px 0" }}><span style={{ position: "absolute", left: 0 }}>・</span>{bold(t.replace(/^\s*[-*・]\s/, ""))}</div>;
+    if (!t) return <div key={i} style={{ height: 6 }} />;
+    return <p key={i} style={{ margin: "4px 0" }}>{bold(t)}</p>;
+  });
+}

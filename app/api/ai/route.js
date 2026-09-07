@@ -1,5 +1,5 @@
 import { KB, KB_NOTE } from "../../knowledge";
-import { LEVERS, DIAG_ITEMS } from "../../data";
+import { LEVERS } from "../../data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,8 +76,10 @@ export async function POST(request) {
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
-  const payload = { systemInstruction: { parts: [{ text: system }] }, contents,
-    generationConfig: { temperature: mode === "diagnose" ? 0.4 : 0.6, maxOutputTokens: mode === "diagnose" ? 1600 : 1200 } };
+  const gen = { temperature: mode === "diagnose" ? 0.4 : 0.6, maxOutputTokens: mode === "diagnose" ? 4000 : 2600 };
+  // gemini-2.5系は“思考(thinking)”が出力枠を食い、回答が途中で切れることがある→ flashは思考を切って回答に全枠を回す
+  if (/flash/i.test(model)) gen.thinkingConfig = { thinkingBudget: 0 };
+  const payload = { systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: gen };
   try {
     const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const d = await r.json();
