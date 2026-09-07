@@ -370,11 +370,12 @@ function GuideScreen({ gsel, setGsel }) {
       <div className="sec">
         {!g && (
           <div className="card glist">
-            {GUIDE.map((x) => (
+            {[...GUIDE].sort((a, b) => (a.priority || 9) - (b.priority || 9)).map((x) => (
               <button key={x.key} className="g" onClick={() => setGsel(x.key)}>
                 <span className="em">{x.emo}</span>
-                <div><div className="nm">{x.title}</div><div className="ds">{x.what.slice(0, 26)}…</div></div>
-                <span className="lv">{x.levers.map((l) => LEVERS.find((y) => y.k === l).nm).join("/")}</span>
+                <div><div className="nm">{x.title}</div><div className="ds">{x.what.slice(0, 24)}…</div></div>
+                {x.priority <= 2 ? <span className="prio">{x.priority === 1 ? "最優先" : "優先"}</span>
+                  : <span className="lv">{x.levers.map((l) => LEVERS.find((y) => y.k === l).nm).join("/")}</span>}
               </button>
             ))}
           </div>
@@ -395,6 +396,17 @@ function GuideScreen({ gsel, setGsel }) {
                 <dt>コツ</dt>
               </dl>
               {g.tips.map((t, i) => <div className="tip" key={i}>・{t}</div>)}
+              {g.deep && g.deep.length > 0 && (
+                <div className="deep">
+                  <div className="deeph">📖 もっと詳しく（しくみ・効き方）</div>
+                  {g.deep.map((d, i) => (
+                    <div className="deepitem fadein" key={i} style={{ animationDelay: (i * 0.05) + "s" }}>
+                      <div className="dh">{d.h}</div>
+                      <div className="dt">{d.t}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
               {g.terms && g.terms.length > 0 && (
                 <div className="termrow">
                   {g.terms.map((k) => <span className="termchip" key={k}><Info k={k} /></span>)}
