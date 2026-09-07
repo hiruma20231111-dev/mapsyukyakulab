@@ -1,0 +1,48 @@
+// Geminiの Google検索グラウンディング で、リンク/店名から公開情報を"下書き"取得
+// ユーザー自身のGeminiキーを使う（Places API不要・オーナー課金なし）。あくまで概算＝要確認。
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function POST(request) {
+  let b;
+  try { b = await request.json(); } catch { return json({ error: "リクエスト不正" }, 400); }
+  const { key, model = "gemini-2.5-flash", input } = b || {};
+  if (!key) return json({ error: "この機能はGeminiキーが必要です（設定で入力）。" }, 400);
+  if (!input || !input.trim()) return json({ error: "リンクか店名を入力してください。" }, 400);
+
+  const prompt =
+    `次のお店について、Google検索で分かる「公開情報」だけを調べ、JSONだけで返してください。前置き・説明・コードフェンスは不要。\n` +
+    `対象: ${input.trim()}\n` +
+    `返すJSON形式:\n` +
+    `{"name":"店名","category":"業種","rating":数値かnull,"reviewCount":整数かnull,"hasWebsite":true/false/null,"hasReservation":true/false/null}\n` +
+    `確証が持てない項目は必ず null。評価・件数は最新の公開値をできるだけ。`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  const payload = {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    tools: [{ google_search: {} }],
+    generationConfig: { temperature: 0 },
+  };
+  try {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (!r.ok) return json({ error: d?.error?.message || `検索エラー(${r.status})` });
+    let text = d?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return json({ error: "うまく取得できませんでした。店名を正式表記にするか、手入力でお願いします。" });
+    let info;
+    try { info = JSON.parse(m[0]); } catch { return json({ error: "取得結果の解析に失敗しました。手入力でお願いします。" }); }
+
+    const auto = {};
+    if (typeof info.category === "string" && info.category) auto.category = 100;
+    if (typeof info.rating === "number") auto.rating = info.rating >= 4.3 ? 100 : info.rating >= 3.8 ? 60 : 25;
+    if (typeof info.reviewCount === "number") auto.reviewCount = info.reviewCount >= 100 ? 100 : info.reviewCount >= 20 ? 55 : 20;
+    if (info.hasWebsite === true || info.hasReservation === true) auto.action = info.hasReservation ? 100 : 60;
+
+    return json({ found: true, info, auto });
+  } catch (e) {
+    return json({ error: "通信エラー: " + (e?.message || e) });
+  }
+}
+
+function json(o, s = 200) { return new Response(JSON.stringify(o), { status: s, headers: { "Content-Type": "application/json" } }); }

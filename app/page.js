@@ -17,7 +17,23 @@ function Info({ k, children }) {
   );
 }
 
-// 操作イメージ図（赤枠で操作箇所を強調）
+// 実スクショ＋赤枠オーバーレイ（画像がある項目で使用）
+function Shot({ src, box, cap }) {
+  return (
+    <div className="howto">
+      <div className="cap">📱 {cap || "操作画面（赤い枠が「触るところ」）"}</div>
+      <div style={{ position: "relative" }}>
+        <img src={src} alt="操作画面" style={{ width: "100%", borderRadius: 12, border: "1px solid var(--line)", display: "block" }} />
+        {box && (
+          <span style={{ position: "absolute", left: box.x + "%", top: box.y + "%", width: box.w + "%", height: box.h + "%",
+            border: "3px solid #e0574a", borderRadius: 8, boxShadow: "0 0 0 3px rgba(224,87,75,.25)" }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 操作イメージ図（実スクショが無いときのフォールバック）
 function HowTo({ hilite, title }) {
   if (!hilite) return null;
   return (
@@ -91,7 +107,7 @@ export default function Page() {
   return (
     <div className="app">
       {tab === "home" && (aiMode ? <HomeAI msgs={msgs} busy={busy} ask={ask} answered={answered} /> : <HomeN setTab={setTab} />)}
-      {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} />}
+      {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
       {tab === "consult" && <Consult />}
 
@@ -184,19 +200,67 @@ function HomeAI({ msgs, busy, ask, answered }) {
   );
 }
 
-function Diag({ answers, setAnswers, result, answered, setTab, setGsel }) {
+function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg }) {
   const done = answered >= 6;
+  const hasKey = !!cfg?.key;
+  const [link, setLink] = useState("");
+  const [fetching, setFetching] = useState(false);
+  const [info, setInfo] = useState(null);
+  const [perr, setPerr] = useState("");
+
+  const lookup = async () => {
+    if (!link.trim() || fetching) return;
+    setFetching(true); setPerr(""); setInfo(null);
+    try {
+      const r = await fetch("/api/lookup", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: cfg.key, model: cfg.model, input: link.trim() }) });
+      const d = await r.json();
+      if (d.error) setPerr(d.error);
+      else if (d.found) {
+        setInfo(d.info);
+        const merged = { ...answers };
+        for (const [k, v] of Object.entries(d.auto)) if (v != null) merged[k] = v;
+        setAnswers(merged);
+      }
+    } catch { setPerr("通信エラー"); }
+    setFetching(false);
+  };
+
   return (
     <>
       <div className="hero" style={{ paddingBottom: 18 }}>
         <Gear />
         <div className="brand">🔍 セルフ診断</div>
-        <h1 style={{ fontSize: 20 }}>10問タップで現在地チェック</h1>
-        <p>お店のGoogleページの状態を選ぶだけ。{answered}/10 問</p>
+        <h1 style={{ fontSize: 20 }}>{hasKey ? "リンクでAI下書き or タップ" : "10問タップで現在地チェック"}</h1>
+        <p>お店のGoogleページを見ながら選ぶだけ。{answered}/10 問</p>
       </div>
-      <div className="sec"><div className="note" style={{ marginTop: 0 }}>
-        🔗 GBPリンクを貼るだけの自動入力は準備中です。今は下の10問をタップで選んでください。
-      </div></div>
+      <div className="sec">
+        {hasKey ? (
+          <div className="card">
+            <div className="qlabel">🔗 GBP/Googleマップのリンク or 店名（AIが検索して下書き）</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input className="kv" value={link} onChange={(e) => setLink(e.target.value)}
+                placeholder="リンクを貼る or 店名を入力" onKeyDown={(e) => e.key === "Enter" && lookup()} />
+              <button className="btn p" style={{ width: "auto", padding: "0 14px" }} onClick={lookup} disabled={fetching}>
+                {fetching ? "検索中" : "🤖 調べる"}
+              </button>
+            </div>
+            {info && (
+              <div className="constitution" style={{ marginTop: 10 }}>
+                🤖 AIが検索で下書きしました：<b>{info.name || "—"}</b>（{info.category || "—"}）／★{info.rating ?? "—"}／クチコミ{info.reviewCount ?? "—"}件<br />
+                ⚠️ これは<b>AIが調べた概算</b>です。実際のページで確認・修正してください。投稿/返信/写真の最新性は下で選んでください。
+              </div>
+            )}
+            {perr && <div className="note" style={{ background: "#fff5f0", color: "#b4460f" }}>⚠️ {perr}</div>}
+            <div className="note" style={{ marginTop: 8 }}>取れるのは公開情報の一部（業種・評価・件数・サイト等）だけ。残りは下の質問で。</div>
+          </div>
+        ) : (
+          <div className="note" style={{ marginTop: 0 }}>
+            📱 お店のGoogleページを開いて、見ながら選ぶと正確です。<br />
+            💡 設定でGeminiキーを入れると、リンク/店名からAIが一部を自動で下書きします。
+          </div>
+        )}
+      </div>
       <div className="sec">
         {DIAG_ITEMS.map((it) => (
           <div className="card" key={it.k}>
@@ -278,7 +342,7 @@ function GuideScreen({ gsel, setGsel }) {
             <button className="btn s" style={{ marginBottom: 12 }} onClick={() => setGsel(null)}>← 一覧へ</button>
             <div className="card gdetail">
               <div style={{ fontSize: 22 }}>{g.emo}</div>
-              <HowTo hilite={g.hilite} title="お店のページ" />
+              {g.shot ? <Shot src={g.shot.src} box={g.shot.box} cap={g.shot.cap} /> : <HowTo hilite={g.hilite} title="お店のページ" />}
               <dt style={{ fontWeight: 800, fontSize: 13, marginTop: 6 }}>やり方（手順）</dt>
               <ol className="steps">{g.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
               <dl>
