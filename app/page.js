@@ -295,48 +295,46 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, bac
 
       {done && (
         <div className="sec">
-          <h2>診断結果</h2>
+          <h2>いまの状態（強み・弱み）</h2>
           <div className="card pop">
-            <div className="scorewrap">
-              <div className="score reveal" style={{ background: `conic-gradient(${gradeColor(result.total)} 0 ${result.total}%,#eef2f6 ${result.total}%)` }}>
-                <b style={{ color: gradeColor(result.total) }}>{result.grade}</b>
-              </div>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 15 }}>{verdictText(result.total)}</div>
-                <div style={{ fontSize: 11, color: "var(--mut)" }}>{result.total}点／簡易セルフ診断</div>
-              </div>
-            </div>
-            <div style={{ marginTop: 12 }}>
-              {LEVERS.map((L) => (
+            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 2 }}>{verdictText(result.total)}</div>
+            <div style={{ fontSize: 11.5, color: "var(--mut)", marginBottom: 12 }}>お店のGoogle活用の“いまの状態”です（点数ではなく傾向で見てください）。</div>
+            {LEVERS.map((L) => {
+              const v = result.levers[L.k] ?? 0;
+              const q = v >= 72 ? { m: "◎", t: "強い", c: "var(--good)" } : v >= 48 ? { m: "○", t: "ふつう", c: "var(--warn)" } : { m: "△", t: "伸びしろ", c: "var(--bad)" };
+              return (
                 <div className="lever" key={L.k}>
-                  <div className="top"><span>{L.nm}（{L.ds}）</span><span>{result.levers[L.k] ?? "—"}</span></div>
-                  <div className="bar"><i className="grow" style={{ width: (result.levers[L.k] ?? 0) + "%", background: LEV_COLOR[L.k] }} /></div>
+                  <div className="top"><span>{L.nm}（{L.ds}）</span><span style={{ fontWeight: 700, color: q.c }}>{q.m} {q.t}</span></div>
+                  <div className="bar"><i className="grow" style={{ width: v + "%", background: LEV_COLOR[L.k] }} /></div>
                 </div>
-              ))}
-            </div>
-            <div className="note">※これは簡易セルフ診断です。カンリーの公式AI診断（13万店舗DB基準）とは別物です。</div>
+              );
+            })}
+            <div className="note">※簡易セルフ診断です。カンリーの公式AI診断（13万店舗DB基準）とは別物です。</div>
           </div>
 
-          {/* AI診断 */}
+          {/* AIコンサルの総評（主役） */}
           {hasKey ? (
             <>
-              <h2>🤖 AIコンサルの診断</h2>
+              <h2>🩺 AIコンサルの総評</h2>
               {!aiDiag.text && !aiDiag.loading && (
                 <div className="card">
-                  <p style={{ fontSize: 13, margin: "0 0 10px" }}>あなたの回答{background ? "とリンク背景" : ""}をもとに、プロ視点で「最優先の3手・今日やること」を出します。</p>
+                  <p style={{ fontSize: 13, margin: "0 0 10px" }}>あなたの回答{background ? "とリンク背景" : ""}をもとに、「何が良くて・何が課題か → なぜか」をプロ視点で解説します。</p>
                   <button className="btn p glow" onClick={runAIDiagnose} disabled={!allDone}>
-                    {allDone ? "🤖 AI診断を受ける" : `あと${total - answered}問 答えると受けられます`}
+                    {allDone ? "🩺 AIに総評してもらう" : `あと${total - answered}問 答えると受けられます`}
                   </button>
                 </div>
               )}
-              {aiDiag.loading && <div className="card"><div className="typing">🏇 AIが分析中<span>.</span><span>.</span><span>.</span></div></div>}
+              {aiDiag.loading && <div className="card"><div className="typing">🔎 AIが分析中<span>.</span><span>.</span><span>.</span></div></div>}
               {aiDiag.err && <div className="verdict bad">⚠️ {aiDiag.err}</div>}
-              {aiDiag.text && <div className="card aicard pop">{renderMd(aiDiag.text)}
-                <button className="btn s" style={{ marginTop: 10 }} onClick={() => setTab("consult")}>💬 このままAIに相談する ›</button>
-              </div>}
+              {aiDiag.text && (
+                <>
+                  <div className="aidoc pop">{renderMd(aiDiag.text)}</div>
+                  <button className="btn p" style={{ marginTop: 4 }} onClick={() => setTab("consult")}>💬 このまま相談を続ける ›</button>
+                </>
+              )}
             </>
           ) : (
-            <div className="note">💡 設定でGeminiキーを入れると、<b>AIコンサルが弱点の直し方まで診断</b>します。</div>
+            <div className="note">💡 設定でGeminiキーを入れると、<b>AIコンサルが「総評→なぜ→次の一手」まで</b>解説します。</div>
           )}
 
           <h2>弱点TOP3 → 直すと効くポイント</h2>
@@ -502,9 +500,10 @@ function renderMd(text) {
     p.startsWith("**") && p.endsWith("**") ? <strong key={i}>{p.slice(2, -2)}</strong> : <span key={i}>{p}</span>);
   return s.split("\n").map((ln, i) => {
     const t = ln.trimEnd();
-    if (/^#{1,6}\s/.test(t)) return <h4 key={i} style={{ margin: "12px 0 4px", fontSize: 15 }}>{bold(t.replace(/^#{1,6}\s/, ""))}</h4>;
-    if (/^\s*[-*・]\s/.test(t)) return <div key={i} style={{ paddingLeft: 14, position: "relative", margin: "3px 0" }}><span style={{ position: "absolute", left: 0 }}>・</span>{bold(t.replace(/^\s*[-*・]\s/, ""))}</div>;
-    if (!t) return <div key={i} style={{ height: 6 }} />;
-    return <p key={i} style={{ margin: "4px 0" }}>{bold(t)}</p>;
+    if (/^#{1,6}\s/.test(t)) return <div key={i} className="mdh">{bold(t.replace(/^#{1,6}\s/, ""))}</div>;
+    if (/^\s*[-*・]\s/.test(t)) return <div key={i} className="mdli">{bold(t.replace(/^\s*[-*・]\s/, ""))}</div>;
+    if (/^\s*\d+[.)]\s/.test(t)) return <div key={i} className="mdli">{bold(t.replace(/^\s*\d+[.)]\s/, ""))}</div>;
+    if (!t) return <div key={i} style={{ height: 4 }} />;
+    return <p key={i} className="mdp">{bold(t)}</p>;
   });
 }

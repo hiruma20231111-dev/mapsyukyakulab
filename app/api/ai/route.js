@@ -60,10 +60,11 @@ export async function POST(request) {
   if (mode === "diagnose") {
     if (!diagnosis) return json({ error: "診断データがありません。" }, 400);
     const ansText = (diagnosis.answers || []).map((a) => `・${a.q} → ${a.label}`).join("\n");
-    const lev = Object.entries(diagnosis.levers || {}).map(([k, v]) => `${LEVERS.find((x) => x.k === k)?.nm || k}:${v}`).join(" / ");
-    let uq = `以下は、あるお店のGoogleマップ活用の「簡易セルフ診断」の回答です。プロのコンサルとして、指定フォーマットで診断してください。\n\n【総合】${diagnosis.total}点(${diagnosis.grade}) / レバー: ${lev}\n\n【設問への回答(本人)】\n${ansText}`;
+    const q = (v) => (v >= 72 ? "強い" : v >= 48 ? "ふつう" : "弱い(伸びしろ)");
+    const lev = Object.entries(diagnosis.levers || {}).map(([k, v]) => `${LEVERS.find((x) => x.k === k)?.nm || k}:${q(v)}`).join(" / ");
+    let uq = `以下は、あるお店のGoogleマップ活用の「簡易セルフ診断」の回答です。プロのコンサルとして総評してください。\n\n【レバーの傾向】${lev}\n\n【設問への回答(本人)】\n${ansText}`;
     if (background) uq += `\n\n【予備知識(リンク検索の公開情報・参考値/未確認)】\n${background}`;
-    uq += `\n\n出力フォーマット:\n1. 🩺 総評(現在地・一言)\n2. 🎯 最優先の3手(順に、なぜ効くか＝レバー/順位要素/Ask Maps層で理由)\n3. 🛠️ 今日やる具体アクション(箇条書き)\n4. 📈 続けると効くこと(中期)\n5. ⚠️ 注意(規約リスク・一般傾向で保証しない旨)`;
+    uq += `\n\n【出力ルール】\n- 点数・スコア（◯点/A〜D）は書かない。良い点と課題を「なぜそう言えるか」の根拠つきで。\n- 各セクションは必ず Markdown見出し「## 」で始める。文章は簡潔に、箇条書きは「- 」で。\n\n【セクション構成】\n## 🩺 総評\n(現在地。良い点と一番の課題を一言ずつ、なぜかの根拠つきで)\n## 🎯 最優先の3手\n(順に。各手が なぜ効くか＝どのレバー/順位要素(関連性・距離・知名度)/Ask Mapsのどの層に効くか の理由を必ず添える)\n## 🛠️ 今日やる具体アクション\n(すぐできる箇条書き)\n## 📈 続けると効くこと\n(鮮度・NAP一貫・サイテーション等の中期)\n## ⚠️ 注意\n(規約リスク・効果は一般的傾向で保証しない旨)`;
     contents.push({ role: "user", parts: [{ text: uq }] });
   } else {
     if (!question) return json({ error: "質問が空です。" }, 400);
