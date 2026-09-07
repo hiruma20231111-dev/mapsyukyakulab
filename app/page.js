@@ -2,7 +2,43 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import "./globals.css";
-import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose } from "./data";
+import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY } from "./data";
+
+// 用語解説（?ボタン → タップで表示、×で閉じる）
+function Info({ k, children }) {
+  const [open, setOpen] = useState(false);
+  const g = GLOSSARY[k];
+  return (
+    <span className="term" onClick={(e) => e.stopPropagation()}>
+      {children || k}
+      <button className="qbtn" onClick={() => setOpen(!open)} aria-label="用語の説明">?</button>
+      {open && <span className="pop"><button className="popx" onClick={() => setOpen(false)}>×</button>{g}</span>}
+    </span>
+  );
+}
+
+// 操作イメージ図（赤枠で操作箇所を強調）
+function HowTo({ hilite, title }) {
+  if (!hilite) return null;
+  return (
+    <div className="howto">
+      <div className="cap">📱 操作イメージ（赤い枠が「触るところ」）</div>
+      <svg viewBox="0 0 320 190" role="img">
+        <rect x="8" y="6" width="304" height="178" rx="16" fill="#f4f7fa" stroke="#d7dee6" />
+        <rect x="8" y="6" width="304" height="34" rx="16" fill="#12324f" />
+        <text x="22" y="28" fill="#fff" fontSize="13" fontWeight="700">📍 {title || "お店のページ"}</text>
+        <rect x="20" y="52" width="280" height="26" rx="7" fill="#eef2f6" />
+        <text x="32" y="69" fill="#8fa1b3" fontSize="12">メニュー項目</text>
+        <rect x="20" y="86" width="280" height="34" rx="8" fill="#fff" stroke="#e0574a" strokeWidth="2.5" />
+        <text x="34" y="107" fill="#16202b" fontSize="13" fontWeight="800">{hilite}</text>
+        <circle cx="286" cy="103" r="11" fill="#e0574a" />
+        <text x="286" y="107" fill="#fff" fontSize="12" fontWeight="800" textAnchor="middle">①</text>
+        <rect x="20" y="128" width="280" height="26" rx="7" fill="#eef2f6" />
+        <text x="32" y="145" fill="#8fa1b3" fontSize="12">メニュー項目</text>
+      </svg>
+    </div>
+  );
+}
 
 const LEV_COLOR = { display: "#0e9f8e", contact: "#e0a13a", visit: "#1f3a5f", aio: "#e0574a" };
 
@@ -156,8 +192,11 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel }) {
         <Gear />
         <div className="brand">🔍 セルフ診断</div>
         <h1 style={{ fontSize: 20 }}>10問タップで現在地チェック</h1>
-        <p>Googleプロフィールの状態を選ぶだけ。{answered}/10 問</p>
+        <p>お店のGoogleページの状態を選ぶだけ。{answered}/10 問</p>
       </div>
+      <div className="sec"><div className="note" style={{ marginTop: 0 }}>
+        🔗 GBPリンクを貼るだけの自動入力は準備中です。今は下の10問をタップで選んでください。
+      </div></div>
       <div className="sec">
         {DIAG_ITEMS.map((it) => (
           <div className="card" key={it.k}>
@@ -239,15 +278,23 @@ function GuideScreen({ gsel, setGsel }) {
             <button className="btn s" style={{ marginBottom: 12 }} onClick={() => setGsel(null)}>← 一覧へ</button>
             <div className="card gdetail">
               <div style={{ fontSize: 22 }}>{g.emo}</div>
+              <HowTo hilite={g.hilite} title="お店のページ" />
+              <dt style={{ fontWeight: 800, fontSize: 13, marginTop: 6 }}>やり方（手順）</dt>
+              <ol className="steps">{g.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
               <dl>
-                <dt>WHAT（何を）</dt><dd>{g.what}</dd>
-                <dt>WHY（なぜ効く）</dt><dd>{g.why}</dd>
+                <dt>何をする？</dt><dd>{g.what}</dd>
+                <dt>なぜ効く？</dt><dd>{g.why}</dd>
                 <dt>効果</dt><dd style={{ color: "var(--teal2)" }}>{g.effect}</dd>
-                <dt>放置すると</dt><dd>{g.risk}</dd>
-                <dt>やり方のヒント</dt>
+                <dt>そのままにすると</dt><dd>{g.risk}</dd>
+                <dt>コツ</dt>
               </dl>
               {g.tips.map((t, i) => <div className="tip" key={i}>・{t}</div>)}
-              {g.key === "review" && <div className="note">※クチコミの“集め方・増やす戦略”は本アプリでは扱いません。本格的な対策は「相談」でご案内します。</div>}
+              {g.terms && g.terms.length > 0 && (
+                <div className="termrow">
+                  {g.terms.map((k) => <span className="termchip" key={k}><Info k={k} /></span>)}
+                </div>
+              )}
+              {g.key === "review" && <div className="note">※クチコミの“集め方・増やすコツ”は、このアプリでは扱っていません。本格的にやりたいときは「相談」を見てください。</div>}
             </div>
           </>
         )}
@@ -265,13 +312,19 @@ function Consult() {
         <h1 style={{ fontSize: 20 }}>もっと本格的にやるなら</h1>
       </div>
       <div className="sec">
-        <div className="role ext"><span className="tag">外／AI</span>
-          <h3>MEOエージェント</h3>
-          <p>止まっている投稿・返信・写真・情報連携をAIが自動化。お店は承認するだけ。</p></div>
-        <div className="role hum"><span className="tag">中／ヒト</span>
-          <h3>レビュライズ</h3>
-          <p>来店〜退店の満足体験を最大化し、“書きたくなる”環境づくりで集客基盤を店内から。</p></div>
-        <div className="note">お店の時間は“顧客満足”に集中。集客運用は適正価格で外注、という役割分担の考え方です。押し売りはしません。まずは現在地の確認から。</div>
+        <p style={{ fontSize: 13, color: "var(--mut)", margin: "0 0 12px" }}>
+          「やることは分かったけど、続ける時間がない…」というときは、こんな頼り方があります。
+        </p>
+        <div className="role ext"><span className="tag">まかせる</span>
+          <h3>🤖 更新を自動でおまかせ</h3>
+          <p>止まりがちな「お知らせ（投稿）・クチコミ返信・写真の更新」を代わりに続けてもらう方法。お店は最終チェックだけ。</p></div>
+        <div className="role hum"><span className="tag">高める</span>
+          <h3>🙂 来店体験を良くして“書きたくなる”状態に</h3>
+          <p>来店から帰るまでの満足度を高めることで、自然とクチコミが生まれ、次のお客さんにもつながる、という考え方。</p></div>
+        <div className="note">
+          お店の時間は“お客さんの満足”に集中し、集客の作業は必要に応じて外に頼る——という役割分担です。
+          こうしたサポートを提供している会社もあります（例：カンリー）。押し売りはしません。まずは現在地の確認から。
+        </div>
       </div>
     </>
   );
