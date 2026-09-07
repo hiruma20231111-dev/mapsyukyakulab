@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import "./globals.css";
-import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY, ACTIONS, guideKeyForItem } from "./data";
+import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY } from "./data";
 
 // 用語解説（?ボタン → タップで表示、×で閉じる）
 function Info({ k, children }) {
@@ -66,6 +66,8 @@ export default function Page() {
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [background, setBackground] = useState("");
+  const [aiDiag, setAiDiag] = useState({ loading: false, text: "", err: "" });
 
   useEffect(() => {
     setCfg({
@@ -79,6 +81,24 @@ export default function Page() {
 
   const result = useMemo(() => diagnose(answers), [answers]);
   const answered = Object.keys(answers).length;
+
+  const runAIDiagnose = async () => {
+    if (!cfg.key || aiDiag.loading) return;
+    setAiDiag({ loading: true, text: "", err: "" });
+    const answersList = DIAG_ITEMS.filter((it) => answers[it.k] != null).map((it) => ({
+      q: it.q, label: (it.opts.find(([, v]) => v === answers[it.k]) || ["—"])[0],
+    }));
+    try {
+      const r = await fetch("/api/ai", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: cfg.key, model: cfg.model, dialect: cfg.dialect, tone: cfg.tone,
+          mode: "diagnose", background,
+          diagnosis: { total: result.total, grade: result.grade, levers: result.levers, answers: answersList } }),
+      });
+      const d = await r.json();
+      setAiDiag({ loading: false, text: d.error ? "" : d.text, err: d.error || "" });
+    } catch { setAiDiag({ loading: false, text: "", err: "通信エラー" }); }
+  };
 
   const ask = async (q, withDiag) => {
     if (!q.trim() || busy) return;
@@ -107,9 +127,9 @@ export default function Page() {
   return (
     <div className="app">
       {tab === "home" && (aiMode ? <HomeAI msgs={msgs} busy={busy} ask={ask} answered={answered} /> : <HomeN setTab={setTab} />)}
-      {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} />}
+      {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} background={background} setBackground={setBackground} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
-      {tab === "consult" && <Consult result={result} answered={answered} hasKey={aiMode} setTab={setTab} setGsel={setGsel} onAskAI={(q) => { setTab("home"); setTimeout(() => ask(q, true), 60); }} />}
+      {tab === "consult" && <Consult cfg={cfg} result={result} answered={answered} background={background} setTab={setTab} />}
 
       {aiMode && tab === "home" ? (
         <div className="inbar">
@@ -200,8 +220,10 @@ function HomeAI({ msgs, busy, ask, answered }) {
   );
 }
 
-function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg }) {
+function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, background, setBackground, aiDiag, runAIDiagnose }) {
+  const total = DIAG_ITEMS.length;
   const done = answered >= 6;
+  const allDone = answered >= total;
   const hasKey = !!cfg?.key;
   const [link, setLink] = useState("");
   const [fetching, setFetching] = useState(false);
@@ -218,9 +240,8 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg }) {
       if (d.error) setPerr(d.error);
       else if (d.found) {
         setInfo({ ...d.info, _query: d.query });
-        const merged = { ...answers };
-        for (const [k, v] of Object.entries(d.auto)) if (v != null) merged[k] = v;
-        setAnswers(merged);
+        // ★設問は自動更新しない。AIの“予備知識”としてだけ保存する。
+        setBackground(`店名:${d.info.name || "—"} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"} / サイト:${d.info.hasWebsite ? "あり" : "不明"}`);
       }
     } catch { setPerr("通信エラー"); }
     setFetching(false);
@@ -228,42 +249,39 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg }) {
 
   return (
     <>
-      <div className="hero" style={{ paddingBottom: 18 }}>
+      <div className="hero fadein" style={{ paddingBottom: 18 }}>
         <Gear />
         <div className="brand">🔍 セルフ診断</div>
-        <h1 style={{ fontSize: 20 }}>{hasKey ? "リンクでAI下書き or タップ" : "10問タップで現在地チェック"}</h1>
-        <p>お店のGoogleページを見ながら選ぶだけ。{answered}/10 問</p>
+        <h1 style={{ fontSize: 20 }}>10問で現在地をチェック</h1>
+        <p>お店のGoogleページを見ながら、当てはまるものを選んでください。<b>{answered}/{total} 問</b></p>
+        <div className="hbar"><i style={{ width: (answered / total * 100) + "%" }} /></div>
       </div>
-      <div className="sec">
-        {hasKey ? (
-          <div className="card">
-            <div className="qlabel">🔗 GBP/Googleマップのリンク or 店名（AIが検索して下書き）</div>
+
+      {hasKey && (
+        <div className="sec">
+          <div className="card fadein">
+            <div className="qlabel">🔗（任意）GBP/Googleマップのリンク or 店名</div>
             <div style={{ display: "flex", gap: 8 }}>
               <input className="kv" value={link} onChange={(e) => setLink(e.target.value)}
-                placeholder="リンクを貼る or 店名を入力" onKeyDown={(e) => e.key === "Enter" && lookup()} />
+                placeholder="貼るとAIが背景情報を集めます" onKeyDown={(e) => e.key === "Enter" && lookup()} />
               <button className="btn p" style={{ width: "auto", padding: "0 14px" }} onClick={lookup} disabled={fetching}>
                 {fetching ? "検索中" : "🤖 調べる"}
               </button>
             </div>
             {info && (
-              <div className="constitution" style={{ marginTop: 10 }}>
-                🤖 AIが検索で下書きしました：<b>{info.name || "—"}</b>（{info.category || "—"}）／★{info.rating ?? "—"}／クチコミ{info.reviewCount ?? "—"}件<br />
-                ⚠️ これは<b>AIが調べた概算</b>です。実際のページで確認・修正してください。投稿/返信/写真の最新性は下で選んでください。
+              <div className="constitution pop" style={{ marginTop: 10 }}>
+                🤖 予備知識を集めました（<b>{info._query || info.name}</b>／★{info.rating ?? "—"}・クチコミ{info.reviewCount ?? "—"}件）。
+                これは<b>AI診断の背景</b>に使うだけで、下の設問は<b>ご自身で回答</b>してください（概算＝要確認）。
               </div>
             )}
             {perr && <div className="note" style={{ background: "#fff5f0", color: "#b4460f" }}>⚠️ {perr}</div>}
-            <div className="note" style={{ marginTop: 8 }}>取れるのは公開情報の一部（業種・評価・件数・サイト等）だけ。残りは下の質問で。</div>
           </div>
-        ) : (
-          <div className="note" style={{ marginTop: 0 }}>
-            📱 お店のGoogleページを開いて、見ながら選ぶと正確です。<br />
-            💡 設定でGeminiキーを入れると、リンク/店名からAIが一部を自動で下書きします。
-          </div>
-        )}
-      </div>
+        </div>
+      )}
+
       <div className="sec">
-        {DIAG_ITEMS.map((it) => (
-          <div className="card" key={it.k}>
+        {DIAG_ITEMS.map((it, i) => (
+          <div className="card fadein" key={it.k} style={{ animationDelay: (i * 0.03) + "s" }}>
             <div className="qlabel">{it.q}</div>
             <div className="seg">
               {it.opts.map(([label, val]) => (
@@ -274,12 +292,13 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg }) {
           </div>
         ))}
       </div>
+
       {done && (
         <div className="sec">
           <h2>診断結果</h2>
-          <div className="card">
+          <div className="card pop">
             <div className="scorewrap">
-              <div className="score" style={{ background: `conic-gradient(${gradeColor(result.total)} 0 ${result.total}%,#eef2f6 ${result.total}%)` }}>
+              <div className="score reveal" style={{ background: `conic-gradient(${gradeColor(result.total)} 0 ${result.total}%,#eef2f6 ${result.total}%)` }}>
                 <b style={{ color: gradeColor(result.total) }}>{result.grade}</b>
               </div>
               <div>
@@ -291,17 +310,40 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg }) {
               {LEVERS.map((L) => (
                 <div className="lever" key={L.k}>
                   <div className="top"><span>{L.nm}（{L.ds}）</span><span>{result.levers[L.k] ?? "—"}</span></div>
-                  <div className="bar"><i style={{ width: (result.levers[L.k] ?? 0) + "%", background: LEV_COLOR[L.k] }} /></div>
+                  <div className="bar"><i className="grow" style={{ width: (result.levers[L.k] ?? 0) + "%", background: LEV_COLOR[L.k] }} /></div>
                 </div>
               ))}
             </div>
             <div className="note">※これは簡易セルフ診断です。カンリーの公式AI診断（13万店舗DB基準）とは別物です。</div>
           </div>
+
+          {/* AI診断 */}
+          {hasKey ? (
+            <>
+              <h2>🤖 AIコンサルの診断</h2>
+              {!aiDiag.text && !aiDiag.loading && (
+                <div className="card">
+                  <p style={{ fontSize: 13, margin: "0 0 10px" }}>あなたの回答{background ? "とリンク背景" : ""}をもとに、プロ視点で「最優先の3手・今日やること」を出します。</p>
+                  <button className="btn p glow" onClick={runAIDiagnose} disabled={!allDone}>
+                    {allDone ? "🤖 AI診断を受ける" : `あと${total - answered}問 答えると受けられます`}
+                  </button>
+                </div>
+              )}
+              {aiDiag.loading && <div className="card"><div className="typing">🏇 AIが分析中<span>.</span><span>.</span><span>.</span></div></div>}
+              {aiDiag.err && <div className="verdict bad">⚠️ {aiDiag.err}</div>}
+              {aiDiag.text && <div className="card aicard pop">{renderMd(aiDiag.text)}
+                <button className="btn s" style={{ marginTop: 10 }} onClick={() => setTab("consult")}>💬 このままAIに相談する ›</button>
+              </div>}
+            </>
+          ) : (
+            <div className="note">💡 設定でGeminiキーを入れると、<b>AIコンサルが弱点の直し方まで診断</b>します。</div>
+          )}
+
           <h2>弱点TOP3 → 直すと効くポイント</h2>
           {result.weak.map((it) => {
             const g = GUIDE.find((x) => x.levers.some((l) => it.lev.includes(l))) || GUIDE[0];
             return (
-              <div className="weak" key={it.k}>
+              <div className="weak fadein" key={it.k}>
                 <div className="h">⚠️ {it.q}</div>
                 {it.lev.map((l) => <span className="lvtag" key={l}>{LEVERS.find((x) => x.k === l).nm}</span>)}
                 <div className="gen">この項目は{it.lev.map((l) => LEVERS.find((x) => x.k === l).nm).join("・")}のレバーを弱めています（一般的傾向）。</div>
@@ -367,81 +409,71 @@ function GuideScreen({ gsel, setGsel }) {
   );
 }
 
-function Consult({ result, answered, hasKey, setTab, setGsel, onAskAI }) {
-  const [checked, setChecked] = useState({});
+function Consult({ cfg, result, answered, background, setTab }) {
+  const hasKey = !!cfg?.key;
   const done = answered >= 6;
-  const plan = done ? result.weak : [];
+  const [cmsgs, setCmsgs] = useState([]);
+  const [cin, setCin] = useState("");
+  const [cbusy, setCbusy] = useState(false);
 
-  const askPlan = () => {
-    const w = plan.map((it) => ACTIONS[it.k]).filter(Boolean).join("、");
-    onAskAI(`私の診断（総合${result.total}点）の弱点は「${w}」でした。何から手をつければいいか、具体的なやり方を教えてください。`);
+  const cask = async (q) => {
+    if (!q.trim() || cbusy || !hasKey) return;
+    setCmsgs((m) => [...m, { role: "user", text: q }]); setCin(""); setCbusy(true);
+    const diag = done ? { total: result.total, grade: result.grade, weak: result.weak.map((it) => it.q) } : null;
+    try {
+      const r = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: cfg.key, model: cfg.model, dialect: cfg.dialect, tone: cfg.tone,
+          question: q, diagnosis: diag, background, history: cmsgs.slice(-6) }) });
+      const d = await r.json();
+      setCmsgs((m) => [...m, { role: "assistant", text: d.error ? "⚠️ " + d.error : d.text }]);
+    } catch { setCmsgs((m) => [...m, { role: "assistant", text: "⚠️ 通信エラー" }]); }
+    setCbusy(false);
   };
+
+  const chips = done
+    ? ["最優先の3手は？", "今日やることを教えて", "弱点の直し方を具体的に", "説明文の書き方の例は？", "クチコミ返信の例文は？"]
+    : ["カテゴリの選び方は？", "写真は何を何枚？", "Ask Mapsって何？", "属性はどう設定する？"];
 
   return (
     <>
-      <div className="hero" style={{ paddingBottom: 18 }}>
+      <div className="aihero fadein">
         <Gear />
-        <div className="brand">💬 相談・次の一手</div>
-        <h1 style={{ fontSize: 20 }}>{done ? "あなたの改善プラン" : "まず診断してみましょう"}</h1>
+        <div className="b">💬 AI改善コンサル {hasKey && <span className="badge" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }}>🤖 連携中</span>}</div>
+        <h1>次の一手を、一緒に決めよう</h1>
+        {done && <p style={{ fontSize: 12, opacity: .9, marginTop: 4 }}>あなたの診断（{result.total}点）をふまえて答えます</p>}
       </div>
 
-      {!done ? (
-        <div className="sec">
-          <div className="card">
-            <p style={{ fontSize: 13.5, margin: "0 0 12px" }}>診断すると、あなたのお店に合わせた「やることリスト」がここに出ます。</p>
-            <button className="btn p" onClick={() => setTab("diag")}>🔍 セルフ診断をする</button>
-          </div>
-        </div>
+      {!hasKey ? (
+        <div className="sec"><div className="card">
+          <p style={{ fontSize: 13.5, margin: "0 0 12px" }}>AI改善コンサルは、設定でGeminiキーを入れると使えます（無料キーOK）。</p>
+          <button className="btn p" onClick={() => (window.location.href = "/settings")}>⚙️ 設定を開く</button>
+        </div></div>
       ) : (
-        <div className="sec">
-          <h2>✅ 優先してやること（弱点から）</h2>
-          <div className="card">
-            {plan.map((it) => (
-              <div key={it.k} style={{ display: "flex", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--line)", alignItems: "flex-start" }}>
-                <input type="checkbox" checked={!!checked[it.k]} onChange={() => setChecked({ ...checked, [it.k]: !checked[it.k] })}
-                  style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: "#0e9f8e" }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, textDecoration: checked[it.k] ? "line-through" : "none", color: checked[it.k] ? "var(--mut)" : "var(--ink)" }}>
-                    {ACTIONS[it.k]}
-                  </div>
-                  <button className="weak" style={{ background: "none", border: "none", padding: "4px 0 0", color: "var(--teal2)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
-                    onClick={() => { setGsel(guideKeyForItem(it)); setTab("guide"); }}>
-                    📚 やり方をガイドで見る ›
-                  </button>
-                </div>
-              </div>
-            ))}
-            <div className="note" style={{ marginTop: 10 }}>上から順に1つずつでOK。チェックして進めましょう。</div>
+        <>
+          {!done && <div className="sec"><div className="note" style={{ marginTop: 0 }}>💡 先に「🔍 診断」を受けると、あなたのお店に合わせた相談ができます。
+            <button className="go" style={{ background: "none", border: "none", padding: "6px 0 0", display: "block" }} onClick={() => setTab("diag")}>🔍 診断する ›</button></div></div>}
+          <div className="chat">
+            {cmsgs.length === 0 && <div className="msg a">こんにちは！{done ? "診断結果をふまえて、" : ""}Googleマップ集客の「次の一手」を一緒に考えます。下のボタンからどうぞ。</div>}
+            {cmsgs.map((m, i) => <div key={i} className={"msg " + (m.role === "user" ? "u" : "a")}>{m.role === "assistant" ? <div>{renderMd(m.text)}</div> : m.text}</div>)}
+            {cbusy && <div className="msg a"><div className="typing">分析中<span>.</span><span>.</span><span>.</span></div></div>}
           </div>
-
-          {hasKey ? (
-            <>
-              <h2>🤖 AIに相談する</h2>
-              <div className="card">
-                <p style={{ fontSize: 13, margin: "0 0 10px" }}>診断結果をもとに、AIが「何からどう直すか」を一緒に考えます。</p>
-                <button className="btn p" onClick={askPlan}>🤖 この結果でAIに相談する</button>
-              </div>
-            </>
-          ) : (
-            <div className="note">💡 設定でGeminiキーを入れると、この結果をもとに<b>AIに相談</b>できます。</div>
-          )}
-        </div>
+          <div className="chips">{chips.map((c) => <div key={c} className="chip" onClick={() => cask(c)}>{c}</div>)}</div>
+          <div className="sec" style={{ paddingTop: 0 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input className="kv" value={cin} onChange={(e) => setCin(e.target.value)} placeholder="質問を入力…"
+                onKeyDown={(e) => e.key === "Enter" && cask(cin)} />
+              <button className="btn p" style={{ width: "auto", padding: "0 16px" }} onClick={() => cask(cin)} disabled={cbusy}>➤</button>
+            </div>
+          </div>
+        </>
       )}
 
       <div className="sec">
-        <h2>👤 プロに任せたいとき</h2>
-        <div className="card">
-          <p style={{ fontSize: 13.5, margin: "0 0 8px" }}>
-            「やることは分かったけど、続ける時間がない…」というときは、集客まわりの更新を代わりに続けてもらう頼り方もあります（更新の代行、来店体験づくりのサポートなど）。
-          </p>
-          <p style={{ fontSize: 12.5, color: "var(--mut)", margin: "0 0 12px" }}>
-            お店の時間は“お客さんの満足”に集中し、集客の作業は必要に応じて外に頼る——という役割分担です。押し売りはしません。
-          </p>
-          <a className="btn p" style={{ display: "block", textAlign: "center", textDecoration: "none" }}
-            href="https://can-ly.com/" target="_blank" rel="noreferrer">
-            📩 相談してみる（カンリー）
-          </a>
-          <div className="note">※ 外部サイト（カンリー）が開きます。まずは相談だけでもOKです。</div>
+        <div className="card" style={{ background: "linear-gradient(160deg,#f0f6f4,#fff)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>👤 続ける時間がないときは</div>
+          <p style={{ fontSize: 12.5, color: "var(--mut)", margin: "0 0 10px" }}>更新の代行や来店体験づくりのサポートを頼む選択肢もあります（押し売りはしません）。</p>
+          <a className="btn s" style={{ display: "block", textAlign: "center", textDecoration: "none" }}
+            href="https://can-ly.com/" target="_blank" rel="noreferrer">📩 専門家に相談してみる</a>
         </div>
       </div>
     </>

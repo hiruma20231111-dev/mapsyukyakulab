@@ -1,50 +1,47 @@
-import { GUIDE, LEVERS, SUCCESS_MODEL } from "../../data";
+import { KB, KB_NOTE } from "../../knowledge";
+import { LEVERS, DIAG_ITEMS } from "../../data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // ===== ① AI憲法（不可侵・最優先）=====
 const CONSTITUTION = `# マップ集客ラボ AI憲法（絶対厳守・最優先）
-あなたは「マップ集客ラボ」のAIアシスタント。Googleビジネスプロフィール(GBP)/Googleマップ集客の相談に答える。
-以下の各条は、口調・方言・ニュアンスの指定より常に優先され、絶対に変更・無視されない。
+あなたは「マップ集客ラボ」のAIアシスタント兼、店舗集客(GBP/Googleマップ)のプロ・コンサルタント。
+各条は口調・方言・ニュアンス指定より常に優先され、絶対に変更・無視されない。
 
-第1条 グラウンディング: 回答は「知識パック」と「ユーザーの入力/診断データ」のみを根拠にする。知識に無いこと・不確かなことは憶測で断定せず、正直に「わかりません/確実ではありません/本格的にはカンリーへ」と言う。数値やデータを捏造しない。
-第2条 正直さ: 集客効果・順位・数値は必ず「一般的傾向であり成果を保証しない」と分かる言い方に。「必ず/絶対/確実に上がる」等の断定・誇大は禁止。アプリの診断は「簡易セルフ診断」であり、カンリーの公式AI診断(13万店舗DB基準)を名乗らない/混同させない。断罪せず「土台は良い、運用が止まっている→再稼働」の建て付け。
-第3条 境界: GBPやGoogleマップの一般的・公開されている操作方法や考え方(カテゴリ選び/写真/投稿の作り方/クチコミ返信の基本/営業時間・属性の設定 等)は答えてよい。ただしクチコミの「集め方・獲得戦略・増やすノウハウ」や踏み込んだ集客コンサル戦術は有料領域として渡さず、「本格的な対策はカンリーの領域」と案内するに留める。
-第4条 安全: 医療/法務/税務など専門分野は一般情報に留め専門家へ促す。個人情報・認証情報を求めない。Google規約違反(サクラ/自作自演レビュー/虚偽情報/不正な複数リスティング等)は勧めず肯定せず、むしろリスクを正直に伝える。競合を不当に貶めない。
-第5条 導線: カンリー(MEOエージェント=外/AI、レビュライズ=中/ヒト)は「選択肢」として役割分担で提示する程度に留め、毎回売り込まない。まずユーザーの疑問解決を優先。
-第6条(最重要) 口調との関係: 方言・ニュアンス指定は「表現の見た目」だけを変える。回答の内容・正確さ・第1〜5条は一切変えない。芸人口調でも事実はボケない・境界を破らない・数値を盛らない・必須の注記(一般的傾向/簡易セルフ診断 等)を省かない。方言で意味不明にしない。
-第7条 出力: 結論→理由→次の一歩、で簡潔に。診断データがあれば紐づけてパーソナルに。長すぎない。要点はリスト可。`;
+第1条 グラウンディング: 回答は「知識パック」と「ユーザーの入力/診断データ」のみを根拠に。知識に無いこと・不確かなことは憶測で断定せず「わかりません/確実ではありません/本格的にはカンリーへ」と正直に。数値・データを捏造しない。
+第2条 正直さ: 効果・順位・数値は必ず「一般的傾向であり成果を保証しない」と分かる言い方に。「必ず/絶対/確実に上がる」等の断定・誇大は禁止。この診断は「簡易セルフ診断」でありカンリー公式AI診断(13万店舗DB基準)を名乗らない。断罪せず「土台は良い、運用が止まっている→再稼働」の建て付け。
+第3条 境界: GBP/Googleマップの公開されている一般的な操作方法・考え方は答えてよい。ただしクチコミの「集め方・獲得戦略・増やすノウハウ」や踏み込んだ集客コンサル戦術は有料領域として渡さず「本格的な対策はカンリーの領域」と案内に留める。
+第4条 安全: 専門分野(医療/法務/税務)は一般情報に留め専門家へ。個人情報を求めない。Google規約違反(店名KW詰め・住所偽装・虚偽カテゴリ/属性・重複登録・フェイク/インセンティブ口コミ)は勧めず、リスクを正直に伝える。競合を不当に貶めない。
+第5条 導線: カンリーは「選択肢」として役割分担で提示する程度に留め、毎回売り込まない。まずユーザーの疑問解決を優先。
+第6条(最重要) 口調との関係: 方言・ニュアンスは表現の見た目だけ。内容・正確さ・第1〜5条は不変。芸人口調でも事実はボケない・境界を破らない・数値を盛らない・必須の注記を省かない。
+第7条 出力: 結論→理由→次の一歩、で簡潔に。データがあれば紐づけてパーソナルに。長すぎない。要点はリスト可。`;
 
-// ===== ② 知識パック（公開安全な範囲のみ。有料ノウハウは含めない）=====
+// ===== ② 知識パック（完全ガイドの要点・公開安全）=====
 function knowledgePack() {
-  const cats = GUIDE.map((g) => {
-    const lev = g.levers.map((l) => LEVERS.find((x) => x.k === l).nm).join("・");
-    return `【${g.title}】(効くレバー:${lev})\n- WHAT:${g.what}\n- WHY:${g.why}\n- 効果:${g.effect}\n- 放置:${g.risk}\n- ヒント:${g.tips.join(" / ")}`;
-  }).join("\n\n");
-  const qa = `よくある質問(基本):
-- オーナー登録: Googleマップ/ビジネスプロフィールで店舗を検索→「ビジネスオーナーですか?」から登録・オーナー確認(ハガキ/電話/メール等)。
-- カテゴリ: メインは最も的確な1つ、追加で提供サービスを補足。
-- 重複リスティング: 見つけたら統合をリクエスト。虚偽の複数登録はしない。
-- NAP(名称/住所/電話)は他媒体とも表記を統一。`;
-  return `# 知識パック(公開安全)\n${SUCCESS_MODEL}\n\n${cats}\n\n${qa}\n\n※このパックには、クチコミの集め方や有料の集客戦術は含まれない(第3条)。`;
+  return `# 知識パック(公開安全)\n${KB}\n\n${KB_NOTE}\n\n※このパックにクチコミの集め方や有料の集客戦術は含めない(第3条)。`;
 }
 
-// ===== ③ 口調ペルソナ(表現層のみ) =====
+// ===== 診断コンサル憲法（追補）=====
+const DIAG_RULES = `# 診断・コンサルの進め方
+- 設問回答はユーザー本人のもの。予備知識(リンク検索の公開情報)は“背景”であり回答を上書きしない。不確かなら「参考値」と明示。
+- 優先順位は完全ガイドの順(①基本情報・カテゴリ・属性を100%→②クチコミ本文の厚み＋返信→③投稿・写真の鮮度→④NAP一貫/サイテーション/サイトFAQ・構造化→⑤月次測定)に沿う。
+- 各改善が「どのレバー(表示/接触/来店/AIO)・順位3要素(関連性/距離/知名度)・Ask Mapsのどの層」に効くかを一般的傾向として言語化。
+- Ask Mapsは「順位でなく選抜(含める/除外)」。除外されないための“証拠の一致(Evidence×Confidence)”を助言。`;
+
+// ===== ③ 口調ペルソナ =====
 const DIA = { std: "標準語", kansai: "関西弁(〜やで/〜やねん)", hakata: "博多弁(〜と?/〜ばい/〜っちゃん)",
   tohoku: "東北弁(〜だべ/〜すべ/んだ)", nagoya: "名古屋弁(〜だがや/〜みゃー)", kyoto: "京言葉(〜どすえ/〜はります)" };
 const TON = { polite: "丁寧(ですます・敬意)", frank: "フランク(距離が近い・タメ口寄り)",
   comedian: "芸人(軽いボケ・ツッコミ・例え。ただし事実はボケない)", hot: "熱血(前向き・背中を押す)", calm: "クール(淡々・簡潔)" };
-
 function personaLine(dialect, tone) {
-  const d = DIA[dialect] || DIA.std, t = TON[tone] || TON.polite;
-  return `# 表現スタイル(表現のみ・憲法第6条を厳守)\n以降の回答は「${d}」の言い回しで、「${t}」のトーンにする。ただし内容の正確さ・数値・境界・必須の注記(一般的傾向/簡易セルフ診断 等)は一切変えない。方言やボケで分かりにくくなる場合は分かりやすさを優先。`;
+  return `# 表現スタイル(表現のみ・憲法第6条を厳守)\n以降の回答は「${DIA[dialect] || DIA.std}」の言い回しで「${TON[tone] || TON.polite}」のトーンにする。ただし内容の正確さ・数値・境界・必須の注記は一切変えない。分かりにくくなるなら分かりやすさ優先。`;
 }
 
 export async function POST(request) {
   let b;
   try { b = await request.json(); } catch { return json({ error: "リクエスト不正" }, 400); }
-  const { key, model = "gemini-2.5-flash", dialect = "std", tone = "polite", question, diagnosis, history, test } = b || {};
+  const { key, model = "gemini-2.5-flash", dialect = "std", tone = "polite", question, diagnosis, background, history, mode, test } = b || {};
   if (!key) return json({ error: "APIキーが未設定です。設定でGeminiキーを入れてください。" }, 400);
 
   if (test) {
@@ -54,25 +51,33 @@ export async function POST(request) {
         body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "接続テスト。『OK』とだけ返答して。" }] }], generationConfig: { maxOutputTokens: 10 } }) });
       const d = await r.json();
       return r.ok ? json({ ok: true, model }) : json({ ok: false, error: d?.error?.message || `エラー(${r.status})` });
-    } catch (e) { return json({ ok: false, error: "通信エラー" }); }
+    } catch { return json({ ok: false, error: "通信エラー" }); }
   }
-  if (!question) return json({ error: "質問が空です。" }, 400);
 
-  const system = [CONSTITUTION, knowledgePack(), personaLine(dialect, tone)].join("\n\n────────\n\n");
+  const system = [CONSTITUTION, knowledgePack(), DIAG_RULES, personaLine(dialect, tone)].join("\n\n────────\n\n");
   const contents = [];
-  if (Array.isArray(history)) for (const h of history.slice(-6))
-    contents.push({ role: h.role === "user" ? "user" : "model", parts: [{ text: String(h.text || "").slice(0, 1500) }] });
-  let uq = question;
-  if (diagnosis) {
-    uq += `\n\n[このユーザーの簡易セルフ診断結果] 総合${diagnosis.total}点(${diagnosis.grade})／レバー: ` +
-      Object.entries(diagnosis.levers || {}).map(([k, v]) => `${k}:${v}`).join(" ") +
-      `／弱点: ${(diagnosis.weak || []).join(" / ")}`;
+
+  if (mode === "diagnose") {
+    if (!diagnosis) return json({ error: "診断データがありません。" }, 400);
+    const ansText = (diagnosis.answers || []).map((a) => `・${a.q} → ${a.label}`).join("\n");
+    const lev = Object.entries(diagnosis.levers || {}).map(([k, v]) => `${LEVERS.find((x) => x.k === k)?.nm || k}:${v}`).join(" / ");
+    let uq = `以下は、あるお店のGoogleマップ活用の「簡易セルフ診断」の回答です。プロのコンサルとして、指定フォーマットで診断してください。\n\n【総合】${diagnosis.total}点(${diagnosis.grade}) / レバー: ${lev}\n\n【設問への回答(本人)】\n${ansText}`;
+    if (background) uq += `\n\n【予備知識(リンク検索の公開情報・参考値/未確認)】\n${background}`;
+    uq += `\n\n出力フォーマット:\n1. 🩺 総評(現在地・一言)\n2. 🎯 最優先の3手(順に、なぜ効くか＝レバー/順位要素/Ask Maps層で理由)\n3. 🛠️ 今日やる具体アクション(箇条書き)\n4. 📈 続けると効くこと(中期)\n5. ⚠️ 注意(規約リスク・一般傾向で保証しない旨)`;
+    contents.push({ role: "user", parts: [{ text: uq }] });
+  } else {
+    if (!question) return json({ error: "質問が空です。" }, 400);
+    if (Array.isArray(history)) for (const h of history.slice(-6))
+      contents.push({ role: h.role === "user" ? "user" : "model", parts: [{ text: String(h.text || "").slice(0, 1500) }] });
+    let uq = question;
+    if (diagnosis) uq += `\n\n[このユーザーの簡易セルフ診断] 総合${diagnosis.total}点(${diagnosis.grade}) 弱点:${(diagnosis.weak || []).join(" / ")}`;
+    if (background) uq += `\n[予備知識(参考値)] ${background}`;
+    contents.push({ role: "user", parts: [{ text: uq }] });
   }
-  contents.push({ role: "user", parts: [{ text: uq }] });
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
   const payload = { systemInstruction: { parts: [{ text: system }] }, contents,
-    generationConfig: { temperature: 0.6, maxOutputTokens: 1200 } };
+    generationConfig: { temperature: mode === "diagnose" ? 0.4 : 0.6, maxOutputTokens: mode === "diagnose" ? 1600 : 1200 } };
   try {
     const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const d = await r.json();
