@@ -139,7 +139,11 @@ export default function Page() {
       dialect: localStorage.getItem("ml_dialect") || "std",
       tone: localStorage.getItem("ml_tone") || "polite",
     });
-    setBackground(localStorage.getItem("ml_bg") || "");
+    // 旧バージョンで保存された背景から、設問と重複する「サイト/予約」を除去（HP誤判定の再発防止）
+    const rawBg = localStorage.getItem("ml_bg") || "";
+    const cleanBg = rawBg.replace(/\s*\/\s*サイト:[^/]*/g, "").replace(/\s*\/\s*予約:[^/]*/g, "").trim();
+    if (cleanBg !== rawBg) { try { cleanBg ? localStorage.setItem("ml_bg", cleanBg) : localStorage.removeItem("ml_bg"); } catch {} }
+    setBackground(cleanBg);
     try { const bi = localStorage.getItem("ml_bg_info"); if (bi) setBgInfo(JSON.parse(bi)); } catch {}
     // 直前の診断（回答＋AI総評）を復元：再ログインしても再診断するまで残す
     try { const a = localStorage.getItem("ml_answers"); if (a) { const p = JSON.parse(a); if (p && typeof p === "object") setAnswers(p); } } catch {}
