@@ -1,5 +1,5 @@
 // 利用履歴の取得：自分のGeminiキーを知る人だけ、自分が発行した相手の履歴＋期限を見られる
-import { getEvents, getInvites, ownerHash, storeReady } from "../../lib/store";
+import { getEvents, getInvites, getDiagMap, ownerHash, storeReady } from "../../lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export async function POST(request) {
   if (!gk || gk.length < 10) return json({ error: "発行に使ったGeminiキーを入力してください。" }, 400);
 
   const owner = ownerHash(gk);
-  const [invites, events] = await Promise.all([getInvites(owner), getEvents(owner)]);
+  const [invites, events, diagMap] = await Promise.all([getInvites(owner), getEvents(owner), getDiagMap(owner)]);
 
   // id ごとの集計
   const agg = {};
@@ -31,7 +31,8 @@ export async function POST(request) {
   const now = Date.now();
   const prospects = Object.values(agg).map((p) => {
     const daysLeft = p.exp ? Math.ceil((p.exp - now) / 86400000) : null;
-    return { ...p, daysLeft, expired: p.exp ? now > p.exp : false, used: p.total > 0 };
+    const dg = diagMap[p.id];
+    return { ...p, daysLeft, expired: p.exp ? now > p.exp : false, used: p.total > 0, hasDiag: !!dg, diagAt: dg ? dg.ts : null };
   }).sort((a, b) => {
     // 期限切れを上に(アラート)、次に最終利用が新しい順、未利用は下
     if (a.expired !== b.expired) return a.expired ? -1 : 1;

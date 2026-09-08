@@ -56,18 +56,53 @@ export async function getInvites(owner) {
   }
 }
 
-// 店舗を削除（招待レコード＋その店のイベントを消す）
+// 店舗を削除（招待レコード＋その店のイベント＋診断を消す）
 export async function deleteStore(owner, id) {
   const c = getClient();
   if (!c || !owner || !id) return;
   try {
     await c.hdel(`invites:${owner}`, id);
+    await c.hdel(`diag:${owner}`, id);
     const key = `usage:${owner}`;
     const arr = await c.lrange(key, 0, 499);
     const keep = (arr || []).filter((s) => { try { return JSON.parse(s).id !== id; } catch { return true; } });
     await c.del(key);
     if (keep.length) await c.rpush(key, ...keep); // 新しい順のまま復元
   } catch {}
+}
+
+// 診断結果を保存（店舗単位・最新のみ上書き）
+export async function saveDiag(owner, id, data) {
+  const c = getClient();
+  if (!c || !owner || !id) return;
+  try {
+    await c.hset(`diag:${owner}`, id, JSON.stringify({ ...data, ts: Date.now() }));
+    await c.expire(`diag:${owner}`, 7776000); // 90日
+  } catch {}
+}
+
+// 特定店舗の最新診断を取得
+export async function getDiag(owner, id) {
+  const c = getClient();
+  if (!c || !owner || !id) return null;
+  try {
+    const s = await c.hget(`diag:${owner}`, id);
+    return s ? JSON.parse(s) : null;
+  } catch { return null; }
+}
+
+// オーナーの全診断（id→{ts,...} の軽いマップ。ダッシュボードのバッジ用）
+export async function getDiagMap(owner) {
+  const c = getClient();
+  if (!c || !owner) return {};
+  try {
+    const h = await c.hgetall(`diag:${owner}`);
+    const out = {};
+    for (const [id, s] of Object.entries(h || {})) {
+      try { const d = JSON.parse(s); out[id] = { ts: d.ts || 0 }; } catch {}
+    }
+    return out;
+  } catch { return {}; }
 }
 
 // オーナーのイベント取得（新しい順）

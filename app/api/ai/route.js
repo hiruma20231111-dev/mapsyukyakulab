@@ -1,7 +1,7 @@
 import { KB, KB_NOTE } from "../../knowledge";
 import { LEVERS } from "../../data";
 import { verifyToken } from "../../lib/invite";
-import { logEvent, ownerHash } from "../../lib/store";
+import { logEvent, ownerHash, saveDiag } from "../../lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,8 +46,10 @@ export async function POST(request) {
   let { key, invite, model = "gemini-2.5-flash", dialect = "std", tone = "polite", question, diagnosis, background, history, mode, test } = b || {};
   // 招待トークンがあれば、埋め込まれた（比留間さんの）キーで動かす
   let apiKey = key;
+  let inv = null;
   if (invite) {
     const v = verifyToken(invite);
+    inv = v;
     if (!v) return json({ error: "招待リンクが無効です。担当者にご確認ください。" });
     if (v.expired) return json({ error: "この招待リンクは有効期限が切れています。担当者に新しいリンクを依頼してください。", expired: true });
     apiKey = v.gk;
@@ -99,6 +101,16 @@ export async function POST(request) {
     const d = await r.json();
     if (!r.ok) return json({ error: d?.error?.message || `Gemini APIエラー(${r.status})` });
     const text = d?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
+    // 招待（商談）モードの診断は、担当者ダッシュボードから見返せるよう保存
+    if (inv && inv.gk && mode === "diagnose" && text) {
+      try {
+        await saveDiag(ownerHash(inv.gk), inv.id, {
+          label: inv.label, text,
+          total: diagnosis?.total, grade: diagnosis?.grade,
+          answers: diagnosis?.answers || [], background: background || "",
+        });
+      } catch {}
+    }
     return json({ text: text || "（回答が空でした。モデルやキーをご確認ください）" });
   } catch (e) { return json({ error: "通信エラー: " + (e?.message || e) }); }
 }

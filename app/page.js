@@ -108,13 +108,10 @@ function Onboarding({ cfg, onDone }) {
 }
 
 export default function Page() {
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState("diag");
   const [answers, setAnswers] = useState({});
   const [gsel, setGsel] = useState(null);
   const [cfg, setCfg] = useState({ key: "", model: "gemini-2.5-flash", dialect: "std", tone: "polite" });
-  const [msgs, setMsgs] = useState([]);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
   const [background, setBackground] = useState("");
   const [bgInfo, setBgInfo] = useState(null);
   const [aiDiag, setAiDiag] = useState({ loading: false, text: "", err: "" });
@@ -205,29 +202,6 @@ export default function Page() {
     } catch { setAiDiag({ loading: false, text: "", err: "通信エラー" }); }
   };
 
-  const ask = async (q, withDiag) => {
-    if (!q.trim() || busy) return;
-    const userMsg = { role: "user", text: q };
-    setMsgs((m) => [...m, userMsg]);
-    setInput("");
-    setBusy(true);
-    const diagnosis = withDiag && answered
-      ? { total: result.total, grade: result.grade, levers: result.levers,
-          weak: result.weak.map((w) => w.q) }
-      : null;
-    try {
-      const r = await fetch("/api/ai", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...aiCreds, question: q, diagnosis, history: msgs.slice(-6) }),
-      });
-      const d = await r.json();
-      setMsgs((m) => [...m, { role: "assistant", text: d.error ? "⚠️ " + d.error : d.text }]);
-    } catch {
-      setMsgs((m) => [...m, { role: "assistant", text: "⚠️ 通信エラー" }]);
-    }
-    setBusy(false);
-  };
-
   if (expired) return (
     <div className="app">
       <div className="hero" style={{ paddingBottom: 40 }}>
@@ -256,13 +230,12 @@ export default function Page() {
           🎫 お試し期間：残り{daysLeft}日
         </div>
       )}
-      {tab === "home" && (aiMode ? <HomeAI msgs={msgs} busy={busy} ask={ask} input={input} setInput={setInput} setTab={setTab} /> : <HomeN setTab={setTab} />)}
       {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
+      {tab === "ai" && <Consult aiCreds={aiCreds} aiOn={aiMode} result={result} answered={answered} background={background} setTab={setTab} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
-      {tab === "consult" && <Consult cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} result={result} answered={answered} background={background} setTab={setTab} />}
 
       <nav className="tabbar">
-        {[["home", aiMode ? "🤖" : "🏠", aiMode ? "AI" : "ホーム"], ["diag", "🔍", "診断"], ["guide", "📚", "ガイド"], ["consult", "💬", "相談"]]
+        {[["diag", "🔍", "診断"], ["ai", "💬", "AIに相談"], ["guide", "📚", "MAPガイド"]]
           .map(([k, i, l]) => (
             <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
               <span className="ic">{i}</span>{l}
@@ -275,79 +248,6 @@ export default function Page() {
 
 function Gear() {
   return <Link href="/settings" className="gear">⚙️</Link>;
-}
-
-function HomeN({ setTab }) {
-  return (
-    <>
-      <div className="hero">
-        <Gear />
-        <div className="brand">📍 マップ集客ラボ</div>
-        <h1>Googleマップ集客、<br />できてますか？</h1>
-        <p>お店のプロフィールを30秒でセルフ診断。弱点と“効くポイント”がわかる。</p>
-        <button className="cta" onClick={() => setTab("diag")}>🔍 30秒でセルフ診断する</button>
-      </div>
-      <div className="sec">
-        <h2>選ばれる仕組み</h2>
-        <div className="card">
-          <div className="flow">
-            <div className="step"><div className="em">🔎</div><div className="t">表示</div><div className="s">見つかる</div></div>
-            <div className="ar">→</div>
-            <div className="step"><div className="em">👀</div><div className="t">接触</div><div className="s">選ばれる</div></div>
-            <div className="ar">→</div>
-            <div className="step"><div className="em">🚶</div><div className="t">来店</div><div className="s">行動</div></div>
-          </div>
-          <div className="note">{SUCCESS_MODEL}</div>
-        </div>
-      </div>
-      <div className="sec">
-        <h2>学ぶ（GBP最適化ガイド）</h2>
-        <div className="card glist">
-          {GUIDE.slice(0, 5).map((g) => (
-            <button key={g.key} className="g" onClick={() => setTab("guide")}>
-              <span className="em">{g.emo}</span>
-              <div><div className="nm">{g.title}</div><div className="ds">{g.what.slice(0, 22)}…</div></div>
-              <span className="arrow">›</span>
-            </button>
-          ))}
-        </div>
-        <div className="note">💡 設定でGeminiキーを入れると、AIアシスタント（方言・口調も選べる）が使えます。</div>
-      </div>
-    </>
-  );
-}
-
-function HomeAI({ msgs, busy, ask, input, setInput, setTab }) {
-  const chips = ["カテゴリの選び方は？", "写真は何を何枚？", "投稿は何を書けばいい？", "Ask Mapsって何？", "オーナー登録のやり方", "サイテーションとは？"];
-  return (
-    <>
-      <div className="aihero fadein">
-        <Gear />
-        <div className="b">📍 マップ集客ラボ ・ AIアシスタント</div>
-        <h1>GBP・マップ集客の<br />“なんでも”質問箱</h1>
-        <p style={{ fontSize: 12, opacity: .9, marginTop: 4 }}>用語・やり方・考え方など、気になることを何でも。</p>
-      </div>
-      <div className="chat">
-        {msgs.length === 0 && (
-          <div className="msg a">こんにちは！GBP・Googleマップ集客の“わからない”に何でも答えます。<br />
-            👉 <b>あなたのお店の弱点や次の一手</b>を相談したいときは、下の「💬 相談」タブ（診断ベースの改善コンサル）へどうぞ。</div>
-        )}
-        {msgs.map((m, i) => <div key={i} className={"msg " + (m.role === "user" ? "u" : "a")}>{m.role === "assistant" ? <div>{renderMd(m.text)}</div> : m.text}</div>)}
-        {busy && <div className="msg a"><div className="typing">考え中<span>.</span><span>.</span><span>.</span></div></div>}
-      </div>
-      <div className="chips">
-        {chips.map((c) => <div key={c} className="chip" onClick={() => ask(c)}>{c}</div>)}
-        <div className="chip" style={{ background: "#e7f6f3", color: "var(--teal2)", fontWeight: 700 }} onClick={() => setTab("consult")}>💬 診断ベースで相談する ›</div>
-      </div>
-      <div className="sec" style={{ paddingTop: 0 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input className="kv" value={input} onChange={(e) => setInput(e.target.value)} placeholder={busy ? "考え中…" : "質問を自由に入力…"}
-            onKeyDown={(e) => e.key === "Enter" && ask(input)} />
-          <button className="btn p" style={{ width: "auto", padding: "0 16px" }} onClick={() => ask(input)} disabled={busy}>➤</button>
-        </div>
-      </div>
-    </>
-  );
 }
 
 function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiCreds, aiOn, background, setBackground, bgInfo, setBgInfo, aiDiag, runAIDiagnose }) {
@@ -466,7 +366,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               {aiDiag.text && <AISections text={aiDiag.text} />}
               {aiDiag.text && (
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn p" onClick={() => setTab("consult")}>💬 このまま相談を続ける ›</button>
+                  <button className="btn p" onClick={() => setTab("ai")}>💬 このままAIに相談する ›</button>
                   <button className="btn s" style={{ width: "auto", padding: "0 14px" }} onClick={runAIDiagnose} disabled={aiDiag.loading}>🔄</button>
                 </div>
               )}
@@ -557,7 +457,7 @@ function GuideScreen({ gsel, setGsel }) {
   );
 }
 
-function Consult({ cfg, aiCreds, aiOn, result, answered, background, setTab }) {
+function Consult({ aiCreds, aiOn, result, answered, background, setTab }) {
   const hasKey = aiOn;
   const done = answered >= 6;
   const [cmsgs, setCmsgs] = useState([]);
@@ -585,9 +485,9 @@ function Consult({ cfg, aiCreds, aiOn, result, answered, background, setTab }) {
     <>
       <div className="aihero fadein">
         <Gear />
-        <div className="b">💬 AI改善コンサル {hasKey && <span className="badge" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }}>🤖 連携中</span>}</div>
+        <div className="b">💬 AIに相談 {hasKey && <span className="badge" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }}>🤖 連携中</span>}</div>
         <h1>次の一手を、一緒に決めよう</h1>
-        {done && <p style={{ fontSize: 12, opacity: .9, marginTop: 4 }}>あなたの診断（{result.total}点）をふまえて答えます</p>}
+        <p style={{ fontSize: 12, opacity: .9, marginTop: 4 }}>{done ? `あなたの診断（${result.total}点）をふまえて答えます` : "用語・やり方から、お店の改善相談まで何でも"}</p>
       </div>
 
       {!hasKey ? (

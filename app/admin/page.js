@@ -4,6 +4,24 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import "../globals.css";
 
+// 診断テキストの簡易整形（## 見出し / - 箇条書き / 段落）
+function renderDiag(text) {
+  const lines = String(text || "").split("\n");
+  const out = [];
+  lines.forEach((ln, i) => {
+    const s = ln.trim();
+    if (!s) return;
+    if (s.startsWith("## ")) {
+      out.push(<div key={i} style={{ fontWeight: 800, fontSize: 14.5, margin: "14px 0 6px", color: "#0b7d70" }}>{s.slice(3)}</div>);
+    } else if (s.startsWith("- ") || s.startsWith("・")) {
+      out.push(<div key={i} style={{ display: "flex", gap: 6, padding: "2px 0" }}><span style={{ color: "#0b7d70" }}>•</span><span>{s.replace(/^[-・]\s*/, "")}</span></div>);
+    } else {
+      out.push(<div key={i} style={{ padding: "3px 0" }}>{s.replace(/^#+\s*/, "")}</div>);
+    }
+  });
+  return out;
+}
+
 export default function Admin() {
   const [gkey, setGkey] = useState("");
   const [label, setLabel] = useState("");
@@ -17,6 +35,8 @@ export default function Admin() {
   const [open, setOpen] = useState({}); // 展開中の店舗id
   const [modal, setModal] = useState(null); // {label, url, qr}
   const [copied, setCopied] = useState("");
+  const [diagModal, setDiagModal] = useState(null); // {label, diag}
+  const [diagLoad, setDiagLoad] = useState(""); // 読み込み中の店舗id
 
   const urlFromToken = (token) => `${typeof window !== "undefined" ? window.location.origin : ""}/?k=${encodeURIComponent(token)}`;
   const showQR = async (label, token) => {
@@ -29,6 +49,17 @@ export default function Admin() {
     if (!token) return;
     navigator.clipboard?.writeText(urlFromToken(token));
     setCopied(id); setTimeout(() => setCopied(""), 1500);
+  };
+  const viewDiag = async (id, label) => {
+    setDiagLoad(id);
+    try {
+      const r = await fetch("/api/diag", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ geminiKey: gkey.trim(), id }) });
+      const d = await r.json();
+      if (d.diag) setDiagModal({ label, diag: d.diag });
+      else setUerr(d.error || "診断を取得できませんでした。");
+    } catch { setUerr("通信エラー"); }
+    setDiagLoad("");
   };
   const delStore = async (id, label) => {
     if (!window.confirm(`「${label}」を履歴から削除しますか？（元に戻せません）`)) return;
@@ -167,6 +198,7 @@ export default function Admin() {
               <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
                 {p.token && <button className="btn s" style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={() => showQR(p.label, p.token)}>📱 QRを表示</button>}
                 {p.token && <button className="btn s" style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={() => copyLink(p.token, p.id)}>{copied === p.id ? "✅ コピー済" : "🔗 リンクをコピー"}</button>}
+                {p.hasDiag && <button className="btn p" style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={() => viewDiag(p.id, p.label)} disabled={diagLoad === p.id}>{diagLoad === p.id ? "読込中…" : "🩺 診断を見る"}</button>}
                 <button className="btn s" style={{ width: "auto", padding: "7px 12px", fontSize: 12, color: "#d9403a", borderColor: "#f0b8b3" }} onClick={() => delStore(p.id, p.label)}>🗑 削除</button>
               </div>
               {isOpen && p.recent && p.recent.length > 0 && (
@@ -183,6 +215,41 @@ export default function Admin() {
         })}
       </div>
       <div style={{ height: 30 }} />
+
+      {diagModal && (
+        <div onClick={() => setDiagModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(10,20,16,.6)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px 14px", overflowY: "auto" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 18, maxWidth: 460, width: "100%", position: "relative", margin: "auto" }}>
+            <div className="row" style={{ marginBottom: 6, position: "sticky", top: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>🩺 {diagModal.label} の診断</div>
+              <button onClick={() => setDiagModal(null)} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--mut)", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--mut)", marginBottom: 10 }}>
+              {diagModal.diag.ts ? `診断日時: ${new Date(diagModal.diag.ts).toLocaleString("ja-JP")}` : ""}
+            </div>
+            {diagModal.diag.answers && diagModal.diag.answers.length > 0 && (
+              <details style={{ marginBottom: 12, background: "#f5f8fa", borderRadius: 10, padding: "8px 12px" }}>
+                <summary style={{ fontSize: 12, fontWeight: 700, cursor: "pointer", color: "#33414f" }}>お客様の回答（{diagModal.diag.answers.length}問）</summary>
+                <div style={{ marginTop: 8 }}>
+                  {diagModal.diag.answers.map((a, i) => (
+                    <div key={i} style={{ fontSize: 12, padding: "3px 0", borderBottom: "1px dashed var(--line)" }}>
+                      <span style={{ color: "var(--mut)" }}>{a.q}</span> → <b>{a.label}</b>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+            {diagModal.diag.background && (
+              <div style={{ fontSize: 11, color: "var(--mut)", background: "#f5f8fa", borderRadius: 10, padding: "8px 12px", marginBottom: 12 }}>
+                <b>店舗の公開情報（参考）</b><br />{diagModal.diag.background}
+              </div>
+            )}
+            <div style={{ fontSize: 13.5, lineHeight: 1.7, color: "var(--ink)" }}>
+              {renderDiag(diagModal.diag.text)}
+            </div>
+            <button className="btn s" style={{ marginTop: 14 }} onClick={() => setDiagModal(null)}>閉じる</button>
+          </div>
+        </div>
+      )}
 
       {modal && (
         <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(10,20,16,.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
