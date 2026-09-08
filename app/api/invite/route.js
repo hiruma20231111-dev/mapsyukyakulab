@@ -17,7 +17,7 @@ export async function POST(request) {
   const v = verifyToken(token);
   // 発行済み招待をダッシュボード用に保存（利用が無くても店舗として並ぶ）
   try {
-    await saveInvite(ownerHash(gk), { id: v.id, label: v.label || "（無題）", exp: v.exp, created: Date.now() });
+    await saveInvite(ownerHash(gk), { id: v.id, label: v.label || "（無題）", exp: v.exp, created: Date.now(), token });
   } catch {}
   return json({ token, label: v.label, exp: v.exp });
 }

@@ -15,6 +15,21 @@ export default function Admin() {
   const [uloading, setUloading] = useState(false);
   const [uerr, setUerr] = useState("");
   const [open, setOpen] = useState({}); // 展開中の店舗id
+  const [modal, setModal] = useState(null); // {label, url, qr}
+  const [copied, setCopied] = useState("");
+
+  const urlFromToken = (token) => `${typeof window !== "undefined" ? window.location.origin : ""}/?k=${encodeURIComponent(token)}`;
+  const showQR = async (label, token) => {
+    if (!token) return;
+    const url = urlFromToken(token);
+    const qr = await QRCode.toDataURL(url, { margin: 1, width: 260 });
+    setModal({ label, url, qr });
+  };
+  const copyLink = (token, id) => {
+    if (!token) return;
+    navigator.clipboard?.writeText(urlFromToken(token));
+    setCopied(id); setTimeout(() => setCopied(""), 1500);
+  };
 
   useEffect(() => {
     const k = localStorage.getItem("ml_admin_gkey") || "";
@@ -93,7 +108,8 @@ export default function Admin() {
 
         {lastQR && (
           <div className="card pop">
-            <div style={{ fontWeight: 800, fontSize: 14 }}>✅ 発行しました：{lastQR.label}</div>
+            <div className="row"><div style={{ fontWeight: 800, fontSize: 14 }}>✅ 発行しました：{lastQR.label}</div>
+              <button onClick={() => setLastQR(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--mut)", lineHeight: 1 }}>×</button></div>
             <div style={{ fontSize: 11, color: "var(--mut)", marginBottom: 8 }}>有効期限：{new Date(lastQR.exp).toLocaleString("ja-JP")}</div>
             <img src={lastQR.qr} alt="QR" style={{ width: 200, height: 200, border: "1px solid var(--line)", borderRadius: 10, display: "block", margin: "0 auto 10px" }} />
             <div style={{ fontSize: 11, wordBreak: "break-all", background: "#f0f3f6", padding: 8, borderRadius: 8 }}>{lastQR.url}</div>
@@ -140,6 +156,12 @@ export default function Admin() {
                 {p.last ? `最終利用: ${new Date(p.last).toLocaleString("ja-JP")}` : (p.created ? `発行: ${new Date(p.created).toLocaleDateString("ja-JP")}` : "")}
                 　{p.exp ? `／ 期限: ${new Date(p.exp).toLocaleDateString("ja-JP")}` : ""}　{isOpen ? "▲" : "▼"}
               </div>
+              {p.token && (
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
+                  <button className="btn s" style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={() => showQR(p.label, p.token)}>📱 QRを表示</button>
+                  <button className="btn s" style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={() => copyLink(p.token, p.id)}>{copied === p.id ? "✅ コピー済" : "🔗 リンクをコピー"}</button>
+                </div>
+              )}
               {isOpen && p.recent && p.recent.length > 0 && (
                 <div style={{ borderTop: "1px dashed var(--line)", marginTop: 8, paddingTop: 8 }}>
                   <div style={{ fontSize: 11, color: "var(--mut)", marginBottom: 4 }}>最近のAI質問</div>
@@ -154,6 +176,23 @@ export default function Admin() {
         })}
       </div>
       <div style={{ height: 30 }} />
+
+      {modal && (
+        <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(10,20,16,.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 18, maxWidth: 340, width: "100%", position: "relative" }}>
+            <div className="row" style={{ marginBottom: 8 }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>🎟️ {modal.label}</div>
+              <button onClick={() => setModal(null)} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--mut)", lineHeight: 1 }}>×</button>
+            </div>
+            <img src={modal.qr} alt="QR" style={{ width: "100%", maxWidth: 260, border: "1px solid var(--line)", borderRadius: 10, display: "block", margin: "0 auto 10px" }} />
+            <div style={{ fontSize: 11, wordBreak: "break-all", background: "#f0f3f6", padding: 8, borderRadius: 8 }}>{modal.url}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button className="btn p" onClick={() => { navigator.clipboard?.writeText(modal.url); }}>🔗 リンクをコピー</button>
+              <button className="btn s" style={{ width: "auto", padding: "0 18px" }} onClick={() => setModal(null)}>閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

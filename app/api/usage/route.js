@@ -19,7 +19,7 @@ export async function POST(request) {
   // id ごとの集計
   const agg = {};
   const ensure = (id, label) => (agg[id] = agg[id] || { id, label: label || "（無題）", last: 0, total: 0, counts: {}, recent: [] });
-  for (const inv of invites) { const m = ensure(inv.id, inv.label); m.exp = inv.exp; m.created = inv.created; }
+  for (const inv of invites) { const m = ensure(inv.id, inv.label); m.exp = inv.exp; m.created = inv.created; m.token = inv.token; }
   for (const e of events) {
     const m = ensure(e.id || e.label || "unknown", e.label);
     m.total++;
