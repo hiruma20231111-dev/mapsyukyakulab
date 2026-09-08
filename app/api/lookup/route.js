@@ -7,12 +7,13 @@ export const dynamic = "force-dynamic";
 export async function POST(request) {
   let b;
   try { b = await request.json(); } catch { return json({ error: "リクエスト不正" }, 400); }
-  const { key, invite, model = "gemini-2.5-flash", input } = b || {};
+  let { key, invite, model = "gemini-2.5-flash", input } = b || {};
   let apiKey = key;
   if (invite) {
     const v = verifyToken(invite);
     if (!v || v.expired) return json({ error: "招待リンクが無効か期限切れです。" });
-    apiKey = process.env.GEMINI_SERVER_KEY;
+    apiKey = v.gk;
+    if (v.model) model = v.model;
   }
   if (!apiKey) return json({ error: "この機能はGeminiキーが必要です（設定で入力）。" }, 400);
   if (!input || !input.trim()) return json({ error: "リンクか店名を入力してください。" }, 400);

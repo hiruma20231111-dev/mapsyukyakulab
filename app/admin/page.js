@@ -1,25 +1,28 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import "../globals.css";
 
 export default function Admin() {
-  const [pw, setPw] = useState("");
+  const [gkey, setGkey] = useState("");
   const [label, setLabel] = useState("");
   const [days, setDays] = useState(14);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [items, setItems] = useState([]); // {label, url, exp, qr}
+  const [items, setItems] = useState([]);
+
+  useEffect(() => { setGkey(localStorage.getItem("ml_admin_gkey") || ""); }, []);
 
   const issue = async () => {
-    if (!pw.trim() || busy) return;
+    if (!gkey.trim() || busy) return;
     setBusy(true); setErr("");
+    localStorage.setItem("ml_admin_gkey", gkey.trim()); // この端末に保存（再入力不要）
     try {
       const r = await fetch("/api/invite", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pw.trim(), label: label.trim(), days: Number(days) || 14 }) });
+        body: JSON.stringify({ geminiKey: gkey.trim(), label: label.trim(), days: Number(days) || 14 }) });
       const d = await r.json();
-      if (d.error) { setErr(d.error); }
+      if (d.error) setErr(d.error);
       if (d.token) {
         const origin = typeof window !== "undefined" ? window.location.origin : "";
         const url = `${origin}/?k=${encodeURIComponent(d.token)}`;
@@ -37,17 +40,18 @@ export default function Admin() {
       <div className="hero" style={{ paddingBottom: 18 }}>
         <div className="row"><div className="brand">🔐 商談アドバイザー発行</div><Link href="/" style={{ color: "#fff", fontSize: 13 }}>← アプリへ</Link></div>
         <h1 style={{ fontSize: 20 }}>招待リンク・QRを作る</h1>
-        <p style={{ fontSize: 12, opacity: .9 }}>商談相手に渡すと、キー不要で2週間AIが使えます（比留間さんのサーバーキーで動作）。</p>
+        <p style={{ fontSize: 12, opacity: .9 }}>商談相手に渡すと、キー不要で2週間AIが使えます。あなたのキーは<b>暗号化してリンクに埋め込み</b>（相手は中身を読めません）。</p>
       </div>
 
       <div className="sec">
         <div className="card">
           <div className="field" style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 12, color: "var(--mut)" }}>管理パスワード</label>
-            <input className="kv" type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="ADMIN_PASSWORD" />
+            <label style={{ fontSize: 12, color: "var(--mut)" }}>あなたのGemini APIキー（この端末に保存）</label>
+            <input className="kv" type="password" value={gkey} onChange={(e) => setGkey(e.target.value)} placeholder="AIza… で始まるキー" />
+            <div className="note" style={{ marginTop: 6 }}>まだ無い場合は <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a> で無料発行。※発行した2週間ぶんの利用があなたのキーに課金されます。</div>
           </div>
           <div className="field" style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 12, color: "var(--mut)" }}>相手・店舗名（履歴の目印）</label>
+            <label style={{ fontSize: 12, color: "var(--mut)" }}>相手・店舗名（目印）</label>
             <input className="kv" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="例：◯◯美容室 田中様" />
           </div>
           <div className="field" style={{ marginBottom: 12 }}>

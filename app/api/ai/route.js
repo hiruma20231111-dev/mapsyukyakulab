@@ -42,15 +42,16 @@ function personaLine(dialect, tone) {
 export async function POST(request) {
   let b;
   try { b = await request.json(); } catch { return json({ error: "リクエスト不正" }, 400); }
-  const { key, invite, model = "gemini-2.5-flash", dialect = "std", tone = "polite", question, diagnosis, background, history, mode, test } = b || {};
-  // 招待トークンがあればサーバー側キー(比留間さんのキー)で動かす
+  let { key, invite, model = "gemini-2.5-flash", dialect = "std", tone = "polite", question, diagnosis, background, history, mode, test } = b || {};
+  // 招待トークンがあれば、埋め込まれた（比留間さんの）キーで動かす
   let apiKey = key;
   if (invite) {
     const v = verifyToken(invite);
     if (!v) return json({ error: "招待リンクが無効です。担当者にご確認ください。" });
     if (v.expired) return json({ error: "この招待リンクは有効期限が切れています。担当者に新しいリンクを依頼してください。", expired: true });
-    apiKey = process.env.GEMINI_SERVER_KEY;
-    if (!apiKey) return json({ error: "サーバー側のAIキーが未設定です（管理者に連絡してください）。" });
+    apiKey = v.gk;
+    if (v.model) model = v.model;
+    if (!apiKey) return json({ error: "招待リンクにキーが含まれていません。担当者に新しいリンクを依頼してください。" });
   }
   if (!apiKey) return json({ error: "APIキーが未設定です。設定でGeminiキーを入れてください。" }, 400);
 
