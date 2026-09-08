@@ -454,23 +454,26 @@ function GuideScreen({ gsel, setGsel }) {
   }, []);
   useEffect(() => { setJustRead(false); }, [gsel]);
 
-  // 詳細の最後までスクロールしたら「完読！」
+  // 詳細の最後までスクロールしたら（＝画面に収まる短いガイドは開いた時点で）「完読！」
   useEffect(() => {
-    if (!g || !endRef.current) return;
-    const el = endRef.current;
-    const io = new IntersectionObserver((ents) => {
-      if (ents.some((e) => e.isIntersecting)) {
-        setRead((prev) => {
-          if (prev[g.key]) return prev;
-          const next = { ...prev, [g.key]: true };
-          try { localStorage.setItem("ml_read_guides", JSON.stringify(next)); } catch {}
-          return next;
-        });
-        setJustRead(true);
-      }
-    }, { threshold: 0, rootMargin: "0px 0px -70px 0px" });
-    io.observe(el);
-    return () => io.disconnect();
+    if (!g) return;
+    let done = false;
+    const mark = () => {
+      if (done) return; done = true;
+      setRead((prev) => { const n = { ...prev, [g.key]: true }; try { localStorage.setItem("ml_read_guides", JSON.stringify(n)); } catch {} return n; });
+      setJustRead(true);
+    };
+    const check = () => {
+      const doc = document.documentElement;
+      const end = endRef.current;
+      const byWin = window.innerHeight + window.scrollY >= doc.scrollHeight - 90;
+      const byEl = end ? end.getBoundingClientRect().top <= window.innerHeight - 60 : false;
+      if (byWin || byEl) mark();
+    };
+    const t = setTimeout(check, 350);
+    window.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check, { passive: true });
+    return () => { clearTimeout(t); window.removeEventListener("scroll", check); window.removeEventListener("resize", check); };
   }, [g]);
 
   const readCount = GUIDE.filter((x) => read[x.key]).length;
