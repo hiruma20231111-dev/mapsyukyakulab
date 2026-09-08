@@ -59,6 +59,20 @@ function HowTo({ hilite, title }) {
 const LEV_COLOR = { display: "#0e9f8e", contact: "#e0a13a", visit: "#1f3a5f", aio: "#e0574a" };
 const DIALECTS = [["std", "標準語"], ["kansai", "関西弁"], ["hakata", "博多弁"], ["tohoku", "東北弁"], ["nagoya", "名古屋弁"], ["kyoto", "京言葉"]];
 const TONES = [["polite", "丁寧"], ["frank", "フランク"], ["comedian", "芸人"], ["hot", "熱血"], ["calm", "クール"]];
+const LOADING_MSG = {
+  std: "AIがあなたのお店を分析しています…", kansai: "AIがめっちゃ分析中やで〜！ちょい待ってな", hakata: "AIが分析しよるけん、ちょっと待っとって〜",
+  tohoku: "AIが分析してるだ〜、ちょっこら待ってけろ", nagoya: "AIが分析しとるがや〜、ちょお待っとりゃあ", kyoto: "AIが分析してますえ〜、少々お待ちやす",
+};
+function AILoading({ dialect }) {
+  return (
+    <div className="ailoading">
+      <div className="ail-emoji">🔎</div>
+      <div className="ail-msg">{LOADING_MSG[dialect] || LOADING_MSG.std}</div>
+      <div className="ail-sub">お店の情報＋回答をプロ視点でチェック中<span className="typing"><span>.</span><span>.</span><span>.</span></span></div>
+      <div className="ail-bar"><i /></div>
+    </div>
+  );
+}
 
 // 招待リンク初回のオンボーディング（方言・ニュアンス・お店の情報）
 function Onboarding({ cfg, onDone }) {
@@ -167,7 +181,7 @@ export default function Page() {
   useEffect(() => { if (invite && !trackedDiag.current && answered >= DIAG_ITEMS.length) { trackedDiag.current = true; track("diagnose_done"); } }, [invite, answered]);
 
   const runAIDiagnose = async () => {
-    if (!cfg.key || aiDiag.loading) return;
+    if ((!cfg.key && !invite) || aiDiag.loading) return;
     setAiDiag({ loading: true, text: "", err: "" });
     const answersList = DIAG_ITEMS.filter((it) => answers[it.k] != null).map((it) => ({
       q: it.q, label: (it.opts.find(([, v]) => v === answers[it.k]) || ["—"])[0],
@@ -415,7 +429,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
                   {aiDiag.loading ? "🔎 分析中…" : allDone ? "🩺 AIに総評してもらう" : `あと${total - answered}問 答えると受けられます`}
                 </button>
               )}
-              {aiDiag.loading && <div className="typing" style={{ margin: "12px 2px" }}>🔎 AIが分析中<span>.</span><span>.</span><span>.</span></div>}
+              {aiDiag.loading && <AILoading dialect={cfg.dialect} />}
               {aiDiag.err && <div className="verdict bad">⚠️ {aiDiag.err}</div>}
               {aiDiag.text && <AISections text={aiDiag.text} />}
               {aiDiag.text && (
