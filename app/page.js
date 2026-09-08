@@ -464,11 +464,11 @@ function GuideScreen({ gsel, setGsel }) {
           if (prev[g.key]) return prev;
           const next = { ...prev, [g.key]: true };
           try { localStorage.setItem("ml_read_guides", JSON.stringify(next)); } catch {}
-          setJustRead(true);
           return next;
         });
+        setJustRead(true);
       }
-    }, { threshold: 1, rootMargin: "0px 0px -40px 0px" });
+    }, { threshold: 0, rootMargin: "0px 0px -70px 0px" });
     io.observe(el);
     return () => io.disconnect();
   }, [g]);
