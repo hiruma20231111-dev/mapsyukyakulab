@@ -1,43 +1,47 @@
-// 軽量ストア（Upstash Redis REST）。Vercel KV / Upstash どちらのenv名でも動く。
+// 軽量ストア（Upstash/Vercel Redis を REDIS_URL でTCP接続）
 import crypto from "crypto";
+import Redis from "ioredis";
 
-const URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
-const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
+const URL = process.env.REDIS_URL || process.env.KV_URL || "";
 
-export function storeReady() { return !!(URL && TOKEN); }
-
-// Upstash REST: POST 本文に ["CMD", arg1, ...] を投げる
-async function cmd(args) {
-  if (!storeReady()) return null;
-  const r = await fetch(URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(args),
-  });
-  const d = await r.json().catch(() => ({}));
-  return d?.result;
+let client = null;
+function getClient() {
+  if (!URL) return null;
+  if (!client) {
+    client = new Redis(URL, { maxRetriesPerRequest: 2, enableReadyCheck: false, lazyConnect: false });
+    client.on("error", () => {}); // 例外でクラッシュさせない
+  }
+  return client;
 }
+
+export function storeReady() { return !!URL; }
 
 // Geminiキー → オーナー識別ハッシュ（ダッシュボードはキーを知る人だけ閲覧可）
 export function ownerHash(geminiKey) {
   return crypto.createHash("sha256").update("owner:" + (geminiKey || "")).digest("hex").slice(0, 24);
 }
 
-// イベント記録（オーナー単位のリストに追記・最新500件・60日で失効）
+// イベント記録（オーナー単位・最新500件・60日で失効）
 export async function logEvent(owner, event) {
-  if (!storeReady() || !owner) return;
+  const c = getClient();
+  if (!c || !owner) return;
   const key = `usage:${owner}`;
   try {
-    await cmd(["LPUSH", key, JSON.stringify({ ...event, ts: Date.now() })]);
-    await cmd(["LTRIM", key, "0", "499"]);
-    await cmd(["EXPIRE", key, "5184000"]); // 60日
+    await c.lpush(key, JSON.stringify({ ...event, ts: Date.now() }));
+    await c.ltrim(key, 0, 499);
+    await c.expire(key, 5184000); // 60日
   } catch {}
 }
 
 // オーナーのイベント取得（新しい順）
 export async function getEvents(owner) {
-  if (!storeReady() || !owner) return [];
-  const res = await cmd(["LRANGE", `usage:${owner}`, "0", "499"]);
-  if (!Array.isArray(res)) return [];
-  return res.map((s) => { try { return JSON.parse(s); } catch { return null; } }).filter(Boolean);
+  const c = getClient();
+  if (!c || !owner) return [];
+  try {
+    const res = await c.lrange(`usage:${owner}`, 0, 499);
+    if (!Array.isArray(res)) return [];
+    return res.map((s) => { try { return JSON.parse(s); } catch { return null; } }).filter(Boolean);
+  } catch {
+    return [];
+  }
 }
