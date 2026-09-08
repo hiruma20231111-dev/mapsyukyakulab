@@ -88,6 +88,9 @@ export default function Page() {
   const aiMode = !!cfg.key || !!invite;
   const aiCreds = { key: cfg.key || undefined, invite: invite || undefined, model: cfg.model, dialect: cfg.dialect, tone: cfg.tone };
 
+  const result = useMemo(() => diagnose(answers), [answers]);
+  const answered = Object.keys(answers).length;
+
   const track = (type, detail) => {
     if (!invite) return;
     fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -97,9 +100,6 @@ export default function Page() {
   const trackedDiag = useRef(false);
   useEffect(() => { if (invite && !trackedOpen.current) { trackedOpen.current = true; track("open"); } }, [invite]);
   useEffect(() => { if (invite && !trackedDiag.current && answered >= DIAG_ITEMS.length) { trackedDiag.current = true; track("diagnose_done"); } }, [invite, answered]);
-
-  const result = useMemo(() => diagnose(answers), [answers]);
-  const answered = Object.keys(answers).length;
 
   const runAIDiagnose = async () => {
     if (!cfg.key || aiDiag.loading) return;
