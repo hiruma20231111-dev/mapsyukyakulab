@@ -410,7 +410,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               <div className="weak fadein" key={it.k}>
                 <div className="h">⚠️ {it.q}</div>
                 {it.lev.map((l) => <span className="lvtag" key={l}>{LEVERS.find((x) => x.k === l).nm}</span>)}
-                <div className="gen">この項目は{it.lev.map((l) => LEVERS.find((x) => x.k === l).nm).join("・")}のレバーを弱めています（一般的傾向）。</div>
+                <div className="gen">ここが弱いと「{it.lev.map((l) => LEVERS.find((x) => x.k === l).nm).join("・")}」の力が下がりやすくなります（一般的な傾向）。</div>
                 <button className="go" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 直し方をガイドで見る ›</button>
               </div>
             );
