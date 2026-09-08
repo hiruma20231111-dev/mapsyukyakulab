@@ -86,6 +86,20 @@ function AILoading({ dialect }) {
   );
 }
 
+// AIがGBPから取得した「収集情報」の表示ラベル
+function descLabel(info) {
+  if (info?.descriptionLength == null) return "不明";
+  return info.descriptionLength > 0 ? `あり（約${info.descriptionLength}文字）` : "なし";
+}
+function postsLabel(info) {
+  if (info?.hasPosts == null) return "不明";
+  return info.hasPosts ? "あり" : "なし";
+}
+// 診断に渡す背景（＝収集した5項目）を1行に整形
+function fmtBg(info, fallbackName) {
+  return `店名:${info.name || fallbackName || "—"} / 業種(カテゴリ):${info.category || "不明"} / クチコミ点数:${info.rating ?? "不明"} / クチコミ数:${info.reviewCount ?? "不明"} / ビジネス説明文:${descLabel(info)} / 投稿(最新情報):${postsLabel(info)}${info.area ? ` / エリア:${info.area}` : ""}`;
+}
+
 // 招待リンク初回のオンボーディング（方言・ニュアンス・お店の情報）
 function Onboarding({ cfg, onDone }) {
   const [dialect, setDialect] = useState(cfg.dialect || "std");
@@ -177,7 +191,7 @@ export default function Page() {
           body: JSON.stringify({ invite: invite || undefined, key: cfg.key || undefined, input: store }) });
         const d = await r.json();
         if (d.found) {
-          bg = `店名:${d.info.name || store} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"}${d.info.area ? ` / エリア:${d.info.area}` : ""}`;
+          bg = fmtBg(d.info, store);
           const info = { ...d.info, query: d.query || store };
           localStorage.setItem("ml_bg_info", JSON.stringify(info)); setBgInfo(info);
         } else { bg = `お店:${store}`; const info = { name: store }; localStorage.setItem("ml_bg_info", JSON.stringify(info)); setBgInfo(info); }
@@ -317,7 +331,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
         const info = { ...d.info, query: d.query };
         setBgInfo(info); try { localStorage.setItem("ml_bg_info", JSON.stringify(info)); } catch {}
         // ★設問は自動更新しない。AIの“予備知識”としてだけ保存する。
-        const bg = `店名:${d.info.name || link.trim()} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"}${d.info.area ? ` / エリア:${d.info.area}` : ""}`;
+        const bg = fmtBg(d.info, link.trim());
         setBackground(bg); try { localStorage.setItem("ml_bg", bg); } catch {}
         setShowInput(false); setLink("");
       }
@@ -339,14 +353,20 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
         <div className="sec">
           {bgInfo && !showInput ? (
             <div className="storebox fadein">
-              <div className="sb-t">🏪 あなたのお店（AI取得・診断に反映済み）</div>
-              <div className="sb-n">{bgInfo.name || bgInfo.query || "—"}</div>
-              <div className="sb-m">{bgInfo.category ? `業種: ${bgInfo.category}　` : ""}★{bgInfo.rating ?? "—"}　クチコミ{bgInfo.reviewCount ?? "—"}件{bgInfo.area ? `　${bgInfo.area}` : ""}</div>
+              <div className="sb-t">🔎 AIがGBPから取得した情報（診断の材料）</div>
+              <div className="sb-n">{bgInfo.name || bgInfo.query || "—"}{bgInfo.area ? <span className="sb-area"> ／ {bgInfo.area}</span> : null}</div>
+              <div className="sb-grid">
+                <div className="sb-row"><span>カテゴリ</span><b>{bgInfo.category || "不明"}</b></div>
+                <div className="sb-row"><span>クチコミ点数</span><b>{bgInfo.rating != null ? `★${bgInfo.rating}` : "不明"}</b></div>
+                <div className="sb-row"><span>クチコミ数</span><b>{bgInfo.reviewCount != null ? `${bgInfo.reviewCount}件` : "不明"}</b></div>
+                <div className="sb-row"><span>ビジネス説明文</span><b>{descLabel(bgInfo)}</b></div>
+                <div className="sb-row"><span>投稿（最新情報）</span><b>{postsLabel(bgInfo)}</b></div>
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "var(--mut)" }}>この内容で合ってる？</span>
                 <button className="btn s" style={{ width: "auto", padding: "6px 12px", fontSize: 12, color: "#d9403a", borderColor: "#f0b8b3" }} onClick={() => { setShowInput(true); setBgInfo(null); setBackground(""); try { localStorage.removeItem("ml_bg_info"); localStorage.removeItem("ml_bg"); } catch {} }}>❌ 別のお店（再検索）</button>
               </div>
-              <div className="note" style={{ marginTop: 6 }}>この情報を背景に、下の{total}問の回答と合わせてAIが総評します。</div>
+              <div className="note" style={{ marginTop: 6 }}>この収集情報＋下の{total}問の回答をもとにAIが診断します。取得できない項目は「不明」と表示します（推測しません）。</div>
             </div>
           ) : (
             <div className="card fadein">
@@ -420,7 +440,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               {aiDiag.text && (
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn p" onClick={() => setTab("ai")}>💬 具体的な一手をAIに相談する ›</button>
-                  <button className="btn s" style={{ width: "auto", padding: "0 14px" }} onClick={runAIDiagnose} disabled={aiDiag.loading}>🔄</button>
+                  <button className="btn s" style={{ width: "auto", padding: "0 16px" }} onClick={runAIDiagnose} disabled={aiDiag.loading}>🔄 再診断</button>
                 </div>
               )}
             </>

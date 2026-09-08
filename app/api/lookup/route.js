@@ -31,12 +31,15 @@ export async function POST(request) {
     `あなたは店舗リサーチの担当です。次のお店を必ず Google検索して、Googleマップ/ビジネスプロフィールの公開情報を特定してください。\n` +
     `対象のお店: ${query}\n\n` +
     `手順: ①「${query}」および「${query} クチコミ 評価」「${query} 口コミ」で複数回Google検索 ②Googleマップの該当店を特定 ③公開Webに出ている“外形情報”を読み取る（Googleマップ本体に加え、食べログ/ホットペッパー等ポータルや公式サイトも参照して裏取り）。\n` +
-    `【必ず探す外形情報（取れたものは必ず埋める）】店名／業種(カテゴリ)／平均★評価／クチコミ件数／公式サイト有無／予約導線有無／エリア・最寄り。\n` +
-    `【評価・件数の探し方】Googleマップの見出しに出る「4.2 ★ (128)」「4.2 · クチコミ128件」「星4.2 128 reviews」等の“平均★評価”と“クチコミ件数”を最優先で拾う。GoogleマップになければGoogleナレッジパネルや食べログ/ホットペッパー等の評価も参考にする。件数が「120件」等で見つかればその整数を必ず reviewCount に入れる（0件や未取得のときのみ null）。\n` +
+    `【必ず探す5項目（＋店名・エリア）】①業種(カテゴリ) ②平均★評価 ③クチコミ件数 ④ビジネス説明文の有無と文字数 ⑤最新情報(投稿)の有無。＋店名・エリア。\n` +
+    `【探し方】\n` +
+    `・評価/件数：Googleマップ見出しの「4.2 ★ (128)」「4.2 · クチコミ128件」「星4.2 128 reviews」等を最優先。無ければナレッジパネルや食べログ/ホットペッパー等も参考。件数が見つかればその整数を必ず reviewCount に入れる（0件や未取得のときのみ null）。\n` +
+    `・ビジネス説明文：Googleマップ プロフィールの「概要/説明(About)」欄。あれば概算の文字数を descriptionLength に整数で（無ければ0、確認不能ならnull）。\n` +
+    `・投稿：Googleマップの「最新情報/更新(Updates/Posts)」があるか。あれば hasPosts=true、無ければfalse、確認不能ならnull。\n` +
     `最後に、次の形のJSONだけを1つ返す（前置き・説明・コードフェンス・出典は不要。JSON以外は書かない）:\n` +
-    `{"name":"正式な店名","category":"業種(例:美容院,カフェ)","rating":平均評価の数値,"reviewCount":クチコミ件数の整数,"hasWebsite":true/false,"hasReservation":true/false,"area":"エリア/最寄り"}\n` +
+    `{"name":"正式な店名","category":"業種(例:美容院,カフェ)","rating":平均評価の数値,"reviewCount":クチコミ件数の整数,"descriptionLength":ビジネス説明文の文字数(整数/無ければ0/不明はnull),"hasPosts":true/false,"area":"エリア/最寄り"}\n` +
     `・検索で判明した値を優先。どうしても確認できない項目だけ null（推測で埋めない・捏造しない）。\n` +
-    `・rating は 3.9 のような数値、reviewCount は 128 のような整数。文字は付けない。`;
+    `・rating は 3.9 のような数値、reviewCount と descriptionLength は整数。文字は付けない。`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const gen = { temperature: 0, maxOutputTokens: 1200 };
@@ -58,13 +61,7 @@ export async function POST(request) {
     let info;
     try { info = JSON.parse(m[0]); } catch { return json({ error: "取得結果の解析に失敗しました。手入力でお願いします。" }); }
 
-    const auto = {};
-    if (typeof info.category === "string" && info.category) auto.category = 100;
-    if (typeof info.rating === "number") auto.rating = info.rating >= 4.3 ? 100 : info.rating >= 3.8 ? 60 : 25;
-    if (typeof info.reviewCount === "number") auto.reviewCount = info.reviewCount >= 100 ? 100 : info.reviewCount >= 20 ? 55 : 20;
-    if (info.hasWebsite === true || info.hasReservation === true) auto.action = info.hasReservation ? 100 : 60;
-
-    return json({ found: true, info, auto, query });
+    return json({ found: true, info, query });
   } catch (e) {
     return json({ error: "通信エラー: " + (e?.message || e) });
   }
