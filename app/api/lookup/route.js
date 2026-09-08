@@ -1,6 +1,7 @@
 // Geminiの Google検索グラウンディング で、リンク/店名から公開情報を"下書き"取得
 // 自前キー or 招待トークン(サーバーキー)。あくまで概算＝要確認。
 import { verifyToken } from "../../lib/invite";
+import { logEvent, ownerHash } from "../../lib/store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export async function POST(request) {
     if (!v || v.expired) return json({ error: "招待リンクが無効か期限切れです。" });
     apiKey = v.gk;
     if (v.model) model = v.model;
+    try { await logEvent(ownerHash(v.gk), { id: v.id, label: v.label, type: "lookup", detail: String(input || "").slice(0, 60) }); } catch {}
   }
   if (!apiKey) return json({ error: "この機能はGeminiキーが必要です（設定で入力）。" }, 400);
   if (!input || !input.trim()) return json({ error: "リンクか店名を入力してください。" }, 400);

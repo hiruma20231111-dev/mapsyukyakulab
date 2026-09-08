@@ -1,6 +1,7 @@
 import { KB, KB_NOTE } from "../../knowledge";
 import { LEVERS } from "../../data";
 import { verifyToken } from "../../lib/invite";
+import { logEvent, ownerHash } from "../../lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,6 +53,7 @@ export async function POST(request) {
     apiKey = v.gk;
     if (v.model) model = v.model;
     if (!apiKey) return json({ error: "招待リンクにキーが含まれていません。担当者に新しいリンクを依頼してください。" });
+    if (!test) { try { await logEvent(ownerHash(v.gk), { id: v.id, label: v.label, type: mode === "diagnose" ? "ai_diagnose" : "ai_chat", detail: (question || "").slice(0, 80) }); } catch {} }
   }
   if (!apiKey) return json({ error: "APIキーが未設定です。設定でGeminiキーを入れてください。" }, 400);
 

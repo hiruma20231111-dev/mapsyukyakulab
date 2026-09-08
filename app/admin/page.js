@@ -11,8 +11,24 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [items, setItems] = useState([]);
+  const [usage, setUsage] = useState(null);
+  const [uloading, setUloading] = useState(false);
+  const [uerr, setUerr] = useState("");
 
   useEffect(() => { setGkey(localStorage.getItem("ml_admin_gkey") || ""); }, []);
+
+  const loadUsage = async () => {
+    if (!gkey.trim() || uloading) return;
+    setUloading(true); setUerr(""); setUsage(null);
+    try {
+      const r = await fetch("/api/usage", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ geminiKey: gkey.trim() }) });
+      const d = await r.json();
+      if (d.error) setUerr(d.error);
+      else setUsage(d);
+    } catch { setUerr("通信エラー"); }
+    setUloading(false);
+  };
 
   const issue = async () => {
     if (!gkey.trim() || busy) return;
@@ -71,7 +87,37 @@ export default function Admin() {
             <button className="btn s" style={{ marginTop: 8 }} onClick={() => copy(it.url)}>🔗 リンクをコピー</button>
           </div>
         ))}
-        <div className="note">※QRを商談相手のスマホで読み取ってもらうと、その場で診断＆AIアドバイザーが使えます（期限まで持ち帰り利用も可）。<br />※利用履歴のダッシュボードは次のアップデートで追加予定です。</div>
+        <div className="note">※QRを商談相手のスマホで読み取ってもらうと、その場で診断＆AIアドバイザーが使えます（期限まで持ち帰り利用も可）。</div>
+
+        <h2 style={{ fontSize: 14, marginTop: 22 }}>📊 利用履歴ダッシュボード</h2>
+        <div className="card">
+          <p style={{ fontSize: 12.5, margin: "0 0 10px", color: "var(--mut)" }}>上のキーで発行した相手の「触った履歴」を表示します（同じGeminiキーの分だけ）。</p>
+          <button className="btn s" onClick={loadUsage} disabled={uloading || !gkey.trim()}>{uloading ? "読込中…" : "🔄 履歴を読み込む"}</button>
+          {uerr && <div className="verdict bad" style={{ marginTop: 10 }}>⚠️ {uerr}</div>}
+        </div>
+
+        {usage && usage.prospects && usage.prospects.length === 0 && (
+          <div className="note">まだ利用履歴がありません（相手が招待リンクを開くと記録されます）。</div>
+        )}
+        {usage && usage.prospects && usage.prospects.map((p) => (
+          <div className="card pop" key={p.id}>
+            <div className="row">
+              <div style={{ fontWeight: 800, fontSize: 14 }}>🎟️ {p.label}</div>
+              <div style={{ fontSize: 10.5, color: "var(--mut)" }}>最終: {new Date(p.last).toLocaleString("ja-JP")}</div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "8px 0" }}>
+              {Object.entries(p.counts).map(([t, n]) => (
+                <span key={t} className="lv" style={{ background: "#e7f6f3", color: "var(--teal2)", fontSize: 11 }}>{usage.typeLabels[t] || t}: {n}</span>
+              ))}
+            </div>
+            {p.recent && p.recent.length > 0 && (
+              <div style={{ borderTop: "1px dashed var(--line)", paddingTop: 8 }}>
+                <div style={{ fontSize: 11, color: "var(--mut)", marginBottom: 4 }}>最近のAI質問</div>
+                {p.recent.map((r, i) => <div key={i} style={{ fontSize: 12, padding: "2px 0" }}>・{r.t}</div>)}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
       <div style={{ height: 30 }} />
     </div>

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import "./globals.css";
 import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY } from "./data";
@@ -87,6 +87,16 @@ export default function Page() {
   }, []);
   const aiMode = !!cfg.key || !!invite;
   const aiCreds = { key: cfg.key || undefined, invite: invite || undefined, model: cfg.model, dialect: cfg.dialect, tone: cfg.tone };
+
+  const track = (type, detail) => {
+    if (!invite) return;
+    fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invite, type, detail }) }).catch(() => {});
+  };
+  const trackedOpen = useRef(false);
+  const trackedDiag = useRef(false);
+  useEffect(() => { if (invite && !trackedOpen.current) { trackedOpen.current = true; track("open"); } }, [invite]);
+  useEffect(() => { if (invite && !trackedDiag.current && answered >= DIAG_ITEMS.length) { trackedDiag.current = true; track("diagnose_done"); } }, [invite, answered]);
 
   const result = useMemo(() => diagnose(answers), [answers]);
   const answered = Object.keys(answers).length;
