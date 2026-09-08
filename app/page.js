@@ -102,6 +102,7 @@ export default function Page() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [background, setBackground] = useState("");
+  const [bgInfo, setBgInfo] = useState(null);
   const [aiDiag, setAiDiag] = useState({ loading: false, text: "", err: "" });
   const [invite, setInvite] = useState("");
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -114,6 +115,7 @@ export default function Page() {
       tone: localStorage.getItem("ml_tone") || "polite",
     });
     setBackground(localStorage.getItem("ml_bg") || "");
+    try { const bi = localStorage.getItem("ml_bg_info"); if (bi) setBgInfo(JSON.parse(bi)); } catch {}
     // 招待リンク（?k=TOKEN）＝商談アドバイザーモード。localStorageにも保持し期限まで持ち帰り利用可
     try {
       const url = new URL(window.location.href);
@@ -136,8 +138,11 @@ export default function Page() {
         const r = await fetch("/api/lookup", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ invite: invite || undefined, key: cfg.key || undefined, input: store }) });
         const d = await r.json();
-        if (d.found) bg = `店名:${d.info.name || store} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"} / サイト:${d.info.hasWebsite ? "あり" : "不明"}`;
-        else bg = `お店:${store}`;
+        if (d.found) {
+          bg = `店名:${d.info.name || store} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"} / サイト:${d.info.hasWebsite ? "あり" : "不明"}`;
+          const info = { ...d.info, query: d.query || store };
+          localStorage.setItem("ml_bg_info", JSON.stringify(info)); setBgInfo(info);
+        } else { bg = `お店:${store}`; const info = { name: store }; localStorage.setItem("ml_bg_info", JSON.stringify(info)); setBgInfo(info); }
       } catch { bg = `お店:${store}`; }
     }
     localStorage.setItem("ml_bg", bg);
@@ -206,7 +211,7 @@ export default function Page() {
   return (
     <div className="app">
       {tab === "home" && (aiMode ? <HomeAI msgs={msgs} busy={busy} ask={ask} input={input} setInput={setInput} setTab={setTab} /> : <HomeN setTab={setTab} />)}
-      {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
+      {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
       {tab === "consult" && <Consult cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} result={result} answered={answered} background={background} setTab={setTab} />}
 
@@ -299,28 +304,31 @@ function HomeAI({ msgs, busy, ask, input, setInput, setTab }) {
   );
 }
 
-function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiCreds, aiOn, background, setBackground, aiDiag, runAIDiagnose }) {
+function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiCreds, aiOn, background, setBackground, bgInfo, setBgInfo, aiDiag, runAIDiagnose }) {
   const total = DIAG_ITEMS.length;
   const done = answered >= 6;
   const allDone = answered >= total;
   const hasKey = aiOn;
   const [link, setLink] = useState("");
   const [fetching, setFetching] = useState(false);
-  const [info, setInfo] = useState(null);
   const [perr, setPerr] = useState("");
+  const [showInput, setShowInput] = useState(false);
 
   const lookup = async () => {
     if (!link.trim() || fetching) return;
-    setFetching(true); setPerr(""); setInfo(null);
+    setFetching(true); setPerr("");
     try {
       const r = await fetch("/api/lookup", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...aiCreds, input: link.trim() }) });
       const d = await r.json();
       if (d.error) setPerr(d.error);
       else if (d.found) {
-        setInfo({ ...d.info, _query: d.query });
+        const info = { ...d.info, query: d.query };
+        setBgInfo(info); try { localStorage.setItem("ml_bg_info", JSON.stringify(info)); } catch {}
         // ★設問は自動更新しない。AIの“予備知識”としてだけ保存する。
-        setBackground(`店名:${d.info.name || "—"} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"} / サイト:${d.info.hasWebsite ? "あり" : "不明"}`);
+        const bg = `店名:${d.info.name || link.trim()} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"} / サイト:${d.info.hasWebsite ? "あり" : "不明"}`;
+        setBackground(bg); try { localStorage.setItem("ml_bg", bg); } catch {}
+        setShowInput(false); setLink("");
       }
     } catch { setPerr("通信エラー"); }
     setFetching(false);
@@ -338,23 +346,28 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
 
       {hasKey && (
         <div className="sec">
-          <div className="card fadein">
-            <div className="qlabel">🔗（任意）GBP/Googleマップのリンク or 店名</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input className="kv" value={link} onChange={(e) => setLink(e.target.value)}
-                placeholder="貼るとAIが背景情報を集めます" onKeyDown={(e) => e.key === "Enter" && lookup()} />
-              <button className="btn p" style={{ width: "auto", padding: "0 14px" }} onClick={lookup} disabled={fetching}>
-                {fetching ? "検索中" : "🤖 調べる"}
-              </button>
+          {bgInfo && !showInput ? (
+            <div className="storebox fadein">
+              <div className="sb-t">🏪 あなたのお店（AI取得・診断に反映済み）</div>
+              <div className="sb-n">{bgInfo.name || bgInfo.query || "—"}</div>
+              <div className="sb-m">{bgInfo.category ? `業種: ${bgInfo.category}　` : ""}★{bgInfo.rating ?? "—"}　クチコミ{bgInfo.reviewCount ?? "—"}件{bgInfo.hasWebsite ? "　サイトあり" : ""}</div>
+              <button className="btn s" style={{ marginTop: 8, width: "auto", padding: "6px 12px", fontSize: 12 }} onClick={() => setShowInput(true)}>別のお店で調べ直す</button>
+              <div className="note" style={{ marginTop: 6 }}>この情報を背景に、下の10問の回答と合わせてAIが総評します（違ったら調べ直しを）。</div>
             </div>
-            {info && (
-              <div className="constitution pop" style={{ marginTop: 10 }}>
-                🤖 予備知識を集めました（<b>{info._query || info.name}</b>／★{info.rating ?? "—"}・クチコミ{info.reviewCount ?? "—"}件）。
-                これは<b>AI診断の背景</b>に使うだけで、下の設問は<b>ご自身で回答</b>してください（概算＝要確認）。
+          ) : (
+            <div className="card fadein">
+              <div className="qlabel">🔗 GBP/Googleマップのリンク or 店名（任意）</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input className="kv" value={link} onChange={(e) => setLink(e.target.value)}
+                  placeholder="貼るとAIが背景情報を集めます" onKeyDown={(e) => e.key === "Enter" && lookup()} />
+                <button className="btn p" style={{ width: "auto", padding: "0 14px" }} onClick={lookup} disabled={fetching}>
+                  {fetching ? "検索中" : "🤖 調べる"}
+                </button>
               </div>
-            )}
-            {perr && <div className="note" style={{ background: "#fff5f0", color: "#b4460f" }}>⚠️ {perr}</div>}
-          </div>
+              {perr && <div className="note" style={{ background: "#fff5f0", color: "#b4460f" }}>⚠️ {perr}</div>}
+              <div className="note" style={{ marginTop: 6 }}>設問は自動では埋めません（ご自身で回答）。これはAI総評の背景に使います。</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -375,38 +388,42 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
       {done && (
         <div className="sec">
           <h2>いまの状態（強み・弱み）</h2>
-          <div className="card pop">
-            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 2 }}>{verdictText(result.total)}</div>
-            <div style={{ fontSize: 11.5, color: "var(--mut)", marginBottom: 12 }}>お店のGoogle活用の“いまの状態”です（点数ではなく傾向で見てください）。</div>
+          <div style={{ fontWeight: 800, fontSize: 15, margin: "0 2px 8px" }}>{verdictText(result.total)}</div>
+          <div className="levpills">
             {LEVERS.map((L) => {
               const v = result.levers[L.k] ?? 0;
-              const q = v >= 72 ? { m: "◎", t: "強い", c: "var(--good)" } : v >= 48 ? { m: "○", t: "ふつう", c: "var(--warn)" } : { m: "△", t: "伸びしろ", c: "var(--bad)" };
+              const q = v >= 72 ? { m: "◎", t: "強い", c: "var(--good)", bg: "#e7f6f3" } : v >= 48 ? { m: "○", t: "ふつう", c: "var(--warn)", bg: "#fff6e6" } : { m: "△", t: "伸びしろ", c: "var(--bad)", bg: "#fdece9" };
               return (
-                <div className="lever" key={L.k}>
-                  <div className="top"><span>{L.nm}（{L.ds}）</span><span style={{ fontWeight: 700, color: q.c }}>{q.m} {q.t}</span></div>
-                  <div className="bar"><i className="grow" style={{ width: v + "%", background: LEV_COLOR[L.k] }} /></div>
+                <div className="levpill" key={L.k} style={{ background: q.bg, borderColor: q.c + "44" }}>
+                  <div className="lp-nm">{L.nm}</div>
+                  <div className="lp-q" style={{ color: q.c }}>{q.m} {q.t}</div>
                 </div>
               );
             })}
-            <div className="note">※簡易セルフ診断です。カンリーの公式AI診断（13万店舗DB基準）とは別物です。</div>
           </div>
+          <div className="note" style={{ marginBottom: 4 }}>※簡易セルフ診断。傾向で見てください（カンリー公式AI診断とは別）。</div>
 
-          {/* AIコンサルの総評（主役・同カード内にボタン→結果） */}
+          {/* AIコンサルの総評（主役・セクションごとにカード表示） */}
           {hasKey ? (
             <>
-              <h2>🩺 AIコンサルの総評</h2>
-              <div className="card">
-                {!aiDiag.text && !aiDiag.loading && (
-                  <p style={{ fontSize: 13, margin: "0 0 10px" }}>あなたの回答{background ? "とリンク背景" : ""}をもとに、「何が良くて・何が課題か → なぜか」をプロ視点で解説します。</p>
-                )}
+              <h2 style={{ marginTop: 20 }}>🩺 AIコンサルの総評</h2>
+              {!aiDiag.text && !aiDiag.loading && (
+                <p style={{ fontSize: 13, margin: "0 2px 10px", color: "var(--mut)" }}>あなたの回答{background ? "とお店の情報" : ""}をもとに「何が良くて・何が課題か → なぜか」を解説します。</p>
+              )}
+              {!aiDiag.text && (
                 <button className="btn p glow" onClick={runAIDiagnose} disabled={!allDone || aiDiag.loading}>
-                  {aiDiag.loading ? "🔎 分析中…" : aiDiag.text ? "🔄 もう一度みてもらう" : allDone ? "🩺 AIに総評してもらう" : `あと${total - answered}問 答えると受けられます`}
+                  {aiDiag.loading ? "🔎 分析中…" : allDone ? "🩺 AIに総評してもらう" : `あと${total - answered}問 答えると受けられます`}
                 </button>
-                {aiDiag.loading && <div className="typing" style={{ marginTop: 12 }}>🔎 AIが分析中<span>.</span><span>.</span><span>.</span></div>}
-                {aiDiag.err && <div className="verdict bad" style={{ marginTop: 12 }}>⚠️ {aiDiag.err}</div>}
-                {aiDiag.text && <div className="airesult fadein">{renderMd(aiDiag.text)}</div>}
-                {aiDiag.text && <button className="btn s" style={{ marginTop: 12 }} onClick={() => setTab("consult")}>💬 このまま相談を続ける ›</button>}
-              </div>
+              )}
+              {aiDiag.loading && <div className="typing" style={{ margin: "12px 2px" }}>🔎 AIが分析中<span>.</span><span>.</span><span>.</span></div>}
+              {aiDiag.err && <div className="verdict bad">⚠️ {aiDiag.err}</div>}
+              {aiDiag.text && <AISections text={aiDiag.text} />}
+              {aiDiag.text && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn p" onClick={() => setTab("consult")}>💬 このまま相談を続ける ›</button>
+                  <button className="btn s" style={{ width: "auto", padding: "0 14px" }} onClick={runAIDiagnose} disabled={aiDiag.loading}>🔄</button>
+                </div>
+              )}
             </>
           ) : (
             <div className="note">💡 設定でGeminiキーを入れると、<b>AIコンサルが「総評→なぜ→次の一手」まで</b>解説します。</div>
@@ -566,6 +583,27 @@ function Consult({ cfg, aiCreds, aiOn, result, answered, background, setTab }) {
 
 function gradeColor(t) { return t >= 80 ? "#0e9f8e" : t >= 65 ? "#e0a13a" : "#e0574a"; }
 function verdictText(t) { return t >= 80 ? "土台◎、しっかり運用できています" : t >= 65 ? "土台は◎、運用に伸びしろ" : t >= 50 ? "土台◎、運用が止まっています→再稼働を" : "まず土台の整備から始めましょう"; }
+
+// AI総評を「## 見出し」や絵文字見出しでセクション分割（別枠ドキュメントでなく、見出しごとのカードに）
+function splitSections(text) {
+  const s = String(text ?? "");
+  const isH = (t) => /^#{1,6}\s/.test(t) || (/^\s*(?:\d+[.)]\s*)?(🩺|🎯|🛠️|🛠|📈|⚠️|⚠|✅|💡|📌|🔎|🏆)/.test(t) && t.replace(/^#{1,6}\s/, "").replace(/^\s*\d+[.)]\s*/, "").length <= 26);
+  const secs = []; let cur = null;
+  for (const ln of s.split("\n")) {
+    const t = ln.trimEnd();
+    if (isH(t)) { cur = { h: t.replace(/^#{1,6}\s*/, "").replace(/^\s*\d+[.)]\s*/, ""), body: [] }; secs.push(cur); }
+    else { if (!cur) { cur = { h: "", body: [] }; secs.push(cur); } cur.body.push(ln); }
+  }
+  return secs.filter((x) => x.h || x.body.join("").trim());
+}
+function AISections({ text }) {
+  return splitSections(text).map((sec, i) => (
+    <div className="aisec fadein" key={i} style={{ animationDelay: (i * 0.05) + "s" }}>
+      {sec.h && <div className="aisec-h">{sec.h}</div>}
+      <div className="aisec-b">{renderMd(sec.body.join("\n"))}</div>
+    </div>
+  ));
+}
 
 // Geminiのmarkdown回答を簡易レンダリング（**太字** / 見出し / 箇条書き）
 function renderMd(text) {

@@ -122,6 +122,22 @@ a{color:var(--teal2);text-decoration:none}
 .aidoc{background:#fff;border:1px solid var(--line);border-radius:14px;padding:6px 16px 16px;margin-bottom:10px;font-size:13.5px;line-height:1.8;color:#1e2a37}
 .airesult{margin-top:14px;padding-top:14px;border-top:2px dashed var(--line);font-size:13.5px;line-height:1.85;color:#1e2a37}
 .airesult .mdli{font-size:13px}
+/* 簡易診断：コンパクトなレバーピル */
+.levpills{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.levpill{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.levpill .lp-nm{font-size:12px;color:var(--mut)}
+.levpill .lp-q{font-size:15px;font-weight:800;margin-top:2px}
+/* AI総評：見出しごとのカード（別枠ドキュメントをやめる） */
+.aisec{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.aisec-h{font-weight:800;font-size:14.5px;color:var(--navy);margin-bottom:7px;padding-bottom:7px;border-bottom:2px solid #e7f6f3}
+.aisec-b{font-size:13.5px;line-height:1.85;color:#28323d}
+.aisec-b .mdli{font-size:13px}
+.aisec-b p:first-child{margin-top:0}
+/* お店の情報カード */
+.storebox{background:linear-gradient(160deg,#eef7f4,#fff);border:1px solid #d7ebe6;border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.storebox .sb-t{font-size:11.5px;color:var(--teal2);font-weight:700}
+.storebox .sb-n{font-size:15px;font-weight:800;margin:2px 0}
+.storebox .sb-m{font-size:12px;color:#33414f}
 .mdh{font-weight:800;font-size:15px;color:var(--navy);margin:16px 0 6px;padding:8px 12px;
   background:linear-gradient(90deg,#eef7f4,#fff);border-left:4px solid var(--teal);border-radius:0 8px 8px 0}
 .mdh:first-child{margin-top:8px}
@@ -138,7 +154,7 @@ a{color:var(--teal2);text-decoration:none}
 .glist .g:hover .nm{color:var(--teal2)}
 .hero,.aihero{position:relative;overflow:hidden}
 .hero::before,.aihero::before{content:"";position:absolute;top:-40px;right:-30px;width:140px;height:140px;border-radius:50%;
-  background:radial-gradient(circle,rgba(255,255,255,.18),transparent 70%);animation:float 5s ease-in-out infinite}
+  background:radial-gradient(circle,rgba(255,255,255,.18),transparent 70%);animation:float 5s ease-in-out infinite;pointer-events:none}
 
 /* 用語解説(?) */
 .term{font-weight:700;color:var(--teal2);border-bottom:1px dashed var(--teal2);position:relative;cursor:pointer;white-space:nowrap}

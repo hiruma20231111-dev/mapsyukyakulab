@@ -28,17 +28,19 @@ export async function POST(request) {
   }
 
   const prompt =
-    `次のお店について、Google検索で分かる「公開情報」だけを調べ、JSONだけで返してください。前置き・説明・コードフェンスは不要。\n` +
-    `対象のお店: ${query}\n` +
-    `返すJSON形式:\n` +
-    `{"name":"店名","category":"業種","rating":数値かnull,"reviewCount":整数かnull,"hasWebsite":true/false/null,"hasReservation":true/false/null}\n` +
-    `確証が持てない項目は必ず null。評価・件数は最新の公開値をできるだけ。`;
+    `あなたは店舗リサーチの担当です。次のお店を必ず Google検索して、Googleマップ/ビジネスプロフィールの公開情報を特定してください。\n` +
+    `対象のお店: ${query}\n\n` +
+    `手順: ①「${query}」でGoogle検索 ②Googleマップの該当店を特定 ③その店の公開情報を読み取る。\n` +
+    `最後に、次の形のJSONだけを1つ返す（前置き・説明・コードフェンス・出典は不要。JSON以外は書かない）:\n` +
+    `{"name":"正式な店名","category":"業種(例:美容院,カフェ)","rating":平均評価の数値,"reviewCount":クチコミ件数の整数,"hasWebsite":true/false,"hasReservation":true/false,"area":"エリア/最寄り"}\n` +
+    `・検索で判明した値を優先。どうしても確認できない項目だけ null。\n` +
+    `・rating は 3.9 のような数値、reviewCount は 128 のような整数。文字は付けない。`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const payload = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     tools: [{ google_search: {} }],
-    generationConfig: { temperature: 0 },
+    generationConfig: { temperature: 0, maxOutputTokens: 800 },
   };
   try {
     const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
