@@ -105,18 +105,24 @@ async function urlToQuery(u) {
          || pick(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)
          || pick(/<meta[^>]+itemprop=["']name["'][^>]+content=["']([^"']+)["']/i)
          || pick(/<title[^>]*>([^<]+)<\/title>/i);
-    if (t) name = cleanTitle(t);
+    const c = cleanTitle(t);
+    if (c && !isJunkName(c)) name = c;
   }
-  return name || null;
+  return name && !isJunkName(name) ? name : null;
 }
 
 // タイトルから「 - Google マップ」「 · ★4.2 · カフェ」などの付帯を除去
 function cleanTitle(t) {
-  return String(t)
+  return String(t || "")
     .replace(/\s*[-–—|]\s*Google\s*(マップ|Maps).*$/i, "")
     .replace(/\s+·\s+.*$/, "")
     .replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"')
     .trim();
+}
+
+// 「Google マップ」等の一般タイトル＝店名ではない → 弾く
+function isJunkName(s) {
+  return /^\s*google\s*(マップ|maps)?\s*$/i.test(s) || s.length < 2;
 }
 
 function json(o, s = 200) { return new Response(JSON.stringify(o), { status: s, headers: { "Content-Type": "application/json" } }); }
