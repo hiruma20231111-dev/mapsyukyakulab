@@ -57,6 +57,41 @@ function HowTo({ hilite, title }) {
 }
 
 const LEV_COLOR = { display: "#0e9f8e", contact: "#e0a13a", visit: "#1f3a5f", aio: "#e0574a" };
+const DIALECTS = [["std", "標準語"], ["kansai", "関西弁"], ["hakata", "博多弁"], ["tohoku", "東北弁"], ["nagoya", "名古屋弁"], ["kyoto", "京言葉"]];
+const TONES = [["polite", "丁寧"], ["frank", "フランク"], ["comedian", "芸人"], ["hot", "熱血"], ["calm", "クール"]];
+
+// 招待リンク初回のオンボーディング（方言・ニュアンス・お店の情報）
+function Onboarding({ cfg, onDone }) {
+  const [dialect, setDialect] = useState(cfg.dialect || "std");
+  const [tone, setTone] = useState(cfg.tone || "polite");
+  const [store, setStore] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="app">
+      <div className="hero fadein">
+        <div className="brand">📍 マップ集客ラボ</div>
+        <h1>ようこそ！<br />はじめに設定しましょう</h1>
+        <p style={{ fontSize: 12.5, opacity: .92 }}>30秒で終わります。あとから変更もできます。</p>
+      </div>
+      <div className="sec">
+        <h2>① AIの話し方（方言）</h2>
+        <div className="pchips">{DIALECTS.map(([k, n]) => <span key={k} className={"pchip" + (dialect === k ? " on" : "")} onClick={() => setDialect(k)}>{n}</span>)}</div>
+        <h2>② ニュアンス</h2>
+        <div className="pchips">{TONES.map(([k, n]) => <span key={k} className={"pchip" + (tone === k ? " on" : "")} onClick={() => setTone(k)}>{n}</span>)}</div>
+        <h2>③ あなたのお店（任意・貼るほど診断が具体的に）</h2>
+        <div className="card">
+          <input className="kv" value={store} onChange={(e) => setStore(e.target.value)} placeholder="GoogleビジネスプロフィールのURL or お店の名前" />
+          <div className="note" style={{ marginTop: 6 }}>入れておくと、AIが検索であなたのお店の公開情報を調べ、診断・アドバイスに反映します（概算・後で確認可）。空でもOK。</div>
+        </div>
+        <button className="btn p glow" style={{ marginTop: 4 }} disabled={busy}
+          onClick={async () => { setBusy(true); await onDone({ dialect, tone, store: store.trim() }); }}>
+          {busy ? "準備中…" : "🚀 はじめる"}
+        </button>
+      </div>
+      <div style={{ height: 30 }} />
+    </div>
+  );
+}
 
 export default function Page() {
   const [tab, setTab] = useState("home");
@@ -69,6 +104,7 @@ export default function Page() {
   const [background, setBackground] = useState("");
   const [aiDiag, setAiDiag] = useState({ loading: false, text: "", err: "" });
   const [invite, setInvite] = useState("");
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   useEffect(() => {
     setCfg({
@@ -77,14 +113,38 @@ export default function Page() {
       dialect: localStorage.getItem("ml_dialect") || "std",
       tone: localStorage.getItem("ml_tone") || "polite",
     });
+    setBackground(localStorage.getItem("ml_bg") || "");
     // 招待リンク（?k=TOKEN）＝商談アドバイザーモード。localStorageにも保持し期限まで持ち帰り利用可
     try {
       const url = new URL(window.location.href);
       const k = url.searchParams.get("k");
-      if (k) { setInvite(k); localStorage.setItem("ml_invite", k); }
-      else { const saved = localStorage.getItem("ml_invite"); if (saved) setInvite(saved); }
+      let inv = "";
+      if (k) { inv = k; setInvite(k); localStorage.setItem("ml_invite", k); }
+      else { const saved = localStorage.getItem("ml_invite"); if (saved) { inv = saved; setInvite(saved); } }
+      // 招待モードの初回だけオンボーディング
+      if (inv && !localStorage.getItem("ml_advisor_setup")) setNeedsSetup(true);
     } catch {}
   }, []);
+
+  const finishSetup = async ({ dialect, tone, store }) => {
+    localStorage.setItem("ml_dialect", dialect);
+    localStorage.setItem("ml_tone", tone);
+    setCfg((c) => ({ ...c, dialect, tone }));
+    let bg = "";
+    if (store) {
+      try {
+        const r = await fetch("/api/lookup", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invite: invite || undefined, key: cfg.key || undefined, input: store }) });
+        const d = await r.json();
+        if (d.found) bg = `店名:${d.info.name || store} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"} / サイト:${d.info.hasWebsite ? "あり" : "不明"}`;
+        else bg = `お店:${store}`;
+      } catch { bg = `お店:${store}`; }
+    }
+    localStorage.setItem("ml_bg", bg);
+    setBackground(bg);
+    localStorage.setItem("ml_advisor_setup", "1");
+    setNeedsSetup(false);
+  };
   const aiMode = !!cfg.key || !!invite;
   const aiCreds = { key: cfg.key || undefined, invite: invite || undefined, model: cfg.model, dialect: cfg.dialect, tone: cfg.tone };
 
@@ -140,6 +200,8 @@ export default function Page() {
     }
     setBusy(false);
   };
+
+  if (needsSetup) return <Onboarding cfg={cfg} onDone={finishSetup} />;
 
   return (
     <div className="app">

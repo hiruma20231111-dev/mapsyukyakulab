@@ -30,12 +30,14 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [test, setTest] = useState(null);
   const [testing, setTesting] = useState(false);
+  const [advisor, setAdvisor] = useState(false);
 
   useEffect(() => {
     setKey(localStorage.getItem("ml_key") || "");
     setModel(localStorage.getItem("ml_model") || "gemini-2.5-flash");
     setDialect(localStorage.getItem("ml_dialect") || "std");
     setTone(localStorage.getItem("ml_tone") || "polite");
+    setAdvisor(!!localStorage.getItem("ml_invite")); // 招待リンク経由=アドバイザー
   }, []);
 
   const save = () => {
@@ -61,27 +63,31 @@ export default function Settings() {
     <div className="app">
       <div className="hero" style={{ paddingBottom: 18 }}>
         <div className="row"><div className="brand">⚙️ 設定</div><Link href="/" style={{ color: "#fff", fontSize: 13 }}>← 戻る</Link></div>
-        <h1 style={{ fontSize: 20 }}>AIのセットアップ</h1>
-        <p>Geminiキーを入れると「AIアシスタント」が起動します。</p>
+        <h1 style={{ fontSize: 20 }}>{advisor ? "AIの話し方の設定" : "AIのセットアップ"}</h1>
+        <p>{advisor ? "AIの方言・ニュアンスを選べます。" : "Geminiキーを入れると「AIアシスタント」が起動します。"}</p>
       </div>
 
       <div className="sec">
-        <h2>Gemini API キー</h2>
-        <div className="card">
-          <input className="kv" type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="AIza… で始まるキー" />
-          <div className="row" style={{ marginTop: 10 }}>
-            <span style={{ fontSize: 12, color: "var(--mut)" }}>モデル</span>
-            <select value={model} onChange={(e) => setModel(e.target.value)} style={{ flex: 1, padding: 10, borderRadius: 9, border: "1px solid var(--line)" }}>
-              {MODELS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="btn p" onClick={save}>{saved ? "✓ 保存しました" : "保存する"}</button>
-            <button className="btn s" onClick={runTest} disabled={testing || !key.trim()}>{testing ? "テスト中…" : "接続テスト"}</button>
-          </div>
-          {test && <div className="constitution" style={{ borderColor: test.ok ? "#d7ebe6" : "#f0c8b0", background: test.ok ? "#eef7f4" : "#fff5f0" }}>{test.ok ? "✓ " : "⚠️ "}{test.t}</div>}
-          <div className="note">キーは<b>この端末のブラウザ内だけ</b>に保存。サーバーには保存しません。<br />無料キー: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a></div>
-        </div>
+        {!advisor && (
+          <>
+            <h2>Gemini API キー</h2>
+            <div className="card">
+              <input className="kv" type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="AIza… で始まるキー" />
+              <div className="row" style={{ marginTop: 10 }}>
+                <span style={{ fontSize: 12, color: "var(--mut)" }}>モデル</span>
+                <select value={model} onChange={(e) => setModel(e.target.value)} style={{ flex: 1, padding: 10, borderRadius: 9, border: "1px solid var(--line)" }}>
+                  {MODELS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <button className="btn p" onClick={save}>{saved ? "✓ 保存しました" : "保存する"}</button>
+                <button className="btn s" onClick={runTest} disabled={testing || !key.trim()}>{testing ? "テスト中…" : "接続テスト"}</button>
+              </div>
+              {test && <div className="constitution" style={{ borderColor: test.ok ? "#d7ebe6" : "#f0c8b0", background: test.ok ? "#eef7f4" : "#fff5f0" }}>{test.ok ? "✓ " : "⚠️ "}{test.t}</div>}
+              <div className="note">キーは<b>この端末のブラウザ内だけ</b>に保存。サーバーには保存しません。<br />無料キー: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a></div>
+            </div>
+          </>
+        )}
 
         <h2>🎭 AIの言語（方言）</h2>
         <div className="card"><div className="pchips">
