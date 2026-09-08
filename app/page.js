@@ -443,8 +443,8 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               {aiDiag.text && <AISections text={aiDiag.text} />}
               {aiDiag.text && (
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn p" onClick={() => setTab("ai")}>💬 具体的な一手をAIに相談する ›</button>
-                  <button className="btn s" style={{ width: "auto", padding: "0 16px" }} onClick={runAIDiagnose} disabled={aiDiag.loading}>🔄 再診断</button>
+                  <button className="btn p" style={{ flex: 1, minWidth: 0 }} onClick={() => setTab("ai")}>💬 AIに相談する ›</button>
+                  <button className="btn s" style={{ width: "auto", flexShrink: 0, padding: "0 16px", whiteSpace: "nowrap" }} onClick={runAIDiagnose} disabled={aiDiag.loading}>🔄 再診断</button>
                 </div>
               )}
             </>
@@ -559,7 +559,6 @@ function GuideScreen({ gsel, setGsel }) {
                   {g.terms.map((k) => <span className="termchip" key={k}><Info k={k} /></span>)}
                 </div>
               )}
-              {g.key === "review" && <div className="note">※クチコミの“集め方・増やすコツ”は、このアプリでは扱っていません。本格的にやりたいときは「相談」を見てください。</div>}
               {(read[g.key] || justRead) && (
                 <div className="readdone">🎉 完読！ このガイドを最後まで読みました</div>
               )}
