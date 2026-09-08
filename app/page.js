@@ -86,18 +86,9 @@ function AILoading({ dialect }) {
   );
 }
 
-// AIがGBPから取得した「収集情報」の表示ラベル
-function descLabel(info) {
-  if (info?.descriptionLength == null) return "不明";
-  return info.descriptionLength > 0 ? `あり（約${info.descriptionLength}文字）` : "なし";
-}
-function postsLabel(info) {
-  if (info?.hasPosts == null) return "不明";
-  return info.hasPosts ? "あり" : "なし";
-}
-// 診断に渡す背景（＝収集した5項目）を1行に整形
+// 診断に渡す背景（＝検索で実際に取れる収集情報）を1行に整形
 function fmtBg(info, fallbackName) {
-  return `店名:${info.name || fallbackName || "—"} / 業種(カテゴリ):${info.category || "不明"} / クチコミ点数:${info.rating ?? "不明"} / クチコミ数:${info.reviewCount ?? "不明"} / ビジネス説明文:${descLabel(info)} / 投稿(最新情報):${postsLabel(info)}${info.area ? ` / エリア:${info.area}` : ""}`;
+  return `店名:${info.name || fallbackName || "—"} / 業種(カテゴリ):${info.category || "不明"} / クチコミ点数:${info.rating ?? "不明"} / クチコミ数:${info.reviewCount ?? "不明"}${info.area ? ` / エリア:${info.area}` : ""}`;
 }
 
 // 招待リンク初回のオンボーディング（方言・ニュアンス・お店の情報）
@@ -153,9 +144,11 @@ export default function Page() {
       dialect: localStorage.getItem("ml_dialect") || "std",
       tone: localStorage.getItem("ml_tone") || "polite",
     });
-    // 旧バージョンで保存された背景から、設問と重複する「サイト/予約」を除去（HP誤判定の再発防止）
+    // 旧バージョンで保存された背景から、設問と重複/検索で取れない項目（サイト/予約/説明文/投稿）を除去
     const rawBg = localStorage.getItem("ml_bg") || "";
-    const cleanBg = rawBg.replace(/\s*\/\s*サイト:[^/]*/g, "").replace(/\s*\/\s*予約:[^/]*/g, "").trim();
+    const cleanBg = rawBg
+      .replace(/\s*\/\s*サイト:[^/]*/g, "").replace(/\s*\/\s*予約:[^/]*/g, "")
+      .replace(/\s*\/\s*ビジネス説明文:[^/]*/g, "").replace(/\s*\/\s*投稿\(最新情報\):[^/]*/g, "").trim();
     if (cleanBg !== rawBg) { try { cleanBg ? localStorage.setItem("ml_bg", cleanBg) : localStorage.removeItem("ml_bg"); } catch {} }
     setBackground(cleanBg);
     try { const bi = localStorage.getItem("ml_bg_info"); if (bi) setBgInfo(JSON.parse(bi)); } catch {}
@@ -306,6 +299,15 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
   const [perr, setPerr] = useState("");
   const [showInput, setShowInput] = useState(false);
 
+  // 収集情報カードの手入力（クチコミ点数・件数）を保存し、診断の背景も更新
+  const setBgField = (field, val) => {
+    const next = { ...(bgInfo || {}), [field]: val };
+    setBgInfo(next);
+    const bg = fmtBg(next, next.name || next.query);
+    setBackground(bg);
+    try { localStorage.setItem("ml_bg_info", JSON.stringify(next)); localStorage.setItem("ml_bg", bg); } catch {}
+  };
+
   const toggleMulti = (it, val) => {
     const cur = answers[it.k] || [];
     let next;
@@ -356,17 +358,19 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               <div className="sb-t">🔎 AIがGBPから取得した情報（診断の材料）</div>
               <div className="sb-n">{bgInfo.name || bgInfo.query || "—"}{bgInfo.area ? <span className="sb-area"> ／ {bgInfo.area}</span> : null}</div>
               <div className="sb-grid">
-                <div className="sb-row"><span>カテゴリ</span><b>{bgInfo.category || "不明"}</b></div>
-                <div className="sb-row"><span>クチコミ点数</span><b>{bgInfo.rating != null ? `★${bgInfo.rating}` : "不明"}</b></div>
-                <div className="sb-row"><span>クチコミ数</span><b>{bgInfo.reviewCount != null ? `${bgInfo.reviewCount}件` : "不明"}</b></div>
-                <div className="sb-row"><span>ビジネス説明文</span><b>{descLabel(bgInfo)}</b></div>
-                <div className="sb-row"><span>投稿（最新情報）</span><b>{postsLabel(bgInfo)}</b></div>
+                <div className="sb-row"><span>カテゴリ<i className="sb-src">検索</i></span><b>{bgInfo.category || "不明"}</b></div>
+                <div className="sb-row"><span>クチコミ点数<i className="sb-src man">手入力</i></span>
+                  <input className="sb-in" type="number" step="0.1" min="0" max="5" inputMode="decimal" placeholder="例 4.2"
+                    value={bgInfo.rating ?? ""} onChange={(e) => setBgField("rating", e.target.value === "" ? null : parseFloat(e.target.value))} /></div>
+                <div className="sb-row"><span>クチコミ数<i className="sb-src man">手入力</i></span>
+                  <input className="sb-in" type="number" min="0" inputMode="numeric" placeholder="例 128"
+                    value={bgInfo.reviewCount ?? ""} onChange={(e) => setBgField("reviewCount", e.target.value === "" ? null : parseInt(e.target.value, 10))} /></div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--mut)" }}>この内容で合ってる？</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--mut)" }}>お店が違う？</span>
                 <button className="btn s" style={{ width: "auto", padding: "6px 12px", fontSize: 12, color: "#d9403a", borderColor: "#f0b8b3" }} onClick={() => { setShowInput(true); setBgInfo(null); setBackground(""); try { localStorage.removeItem("ml_bg_info"); localStorage.removeItem("ml_bg"); } catch {} }}>❌ 別のお店（再検索）</button>
               </div>
-              <div className="note" style={{ marginTop: 6 }}>この収集情報＋下の{total}問の回答をもとにAIが診断します。取得できない項目は「不明」と表示します（推測しません）。</div>
+              <div className="note" style={{ marginTop: 6 }}>クチコミ点数・件数は、Googleマップのお店ページを見て入力してください（検索では正確に取れないため手入力）。写真枚数・投稿・説明文などは下の{total}問でお答えください。この情報＋回答でAIが診断します。</div>
             </div>
           ) : (
             <div className="card fadein">

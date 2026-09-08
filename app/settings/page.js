@@ -105,6 +105,16 @@ export default function Settings() {
           <div className="constitution">🛡️ <b>AI憲法で保証</b>：口調をどう変えても「効果は一般的傾向・保証しない」「簡易セルフ診断」などの注記と、事実・境界（クチコミ集めの有料ノウハウは出さない）は必ず守られます。</div>
           <button className="btn p" style={{ marginTop: 12 }} onClick={save}>{saved ? "✓ 保存しました" : "この設定で保存"}</button>
         </div>
+
+        {!advisor && (
+          <>
+            <h2>🔐 担当者メニュー</h2>
+            <div className="card">
+              <div style={{ fontSize: 12.5, color: "var(--mut)", marginBottom: 10 }}>招待リンク／QRの発行と、利用状況ダッシュボードはこちら（この端末にだけ表示。お客様の画面には出ません）。</div>
+              <Link href="/admin" className="btn p" style={{ display: "block", textAlign: "center", textDecoration: "none" }}>🔐 管理ダッシュボードを開く</Link>
+            </div>
+          </>
+        )}
       </div>
       <div style={{ height: 30 }} />
     </div>
