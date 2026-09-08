@@ -103,6 +103,16 @@ a{color:var(--teal2);text-decoration:none}
 @keyframes facePop{0%{transform:scale(.3) rotate(-14deg);opacity:0}55%{transform:scale(1.22) rotate(4deg)}100%{transform:scale(1) rotate(0);opacity:1}}
 .aibuddy .mood{font-size:12.5px;font-weight:800;line-height:1.35}
 .aibuddy .hearts{font-size:12px;opacity:.95;letter-spacing:2px;margin-top:2px}
+/* 相談：最新のやりとり＋過去の質問 */
+.qbubble{background:var(--navy);color:#fff;border-radius:14px 14px 14px 4px;padding:11px 14px;font-size:13.5px;font-weight:700;line-height:1.6;margin-bottom:10px;box-shadow:var(--sh);animation:aiRise .4s both}
+.abubble{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 15px;font-size:13.5px;line-height:1.9;color:#28323d;box-shadow:var(--sh);animation:aiRise .45s both}
+.pastlist{display:flex;flex-direction:column;gap:8px}
+.pastitem{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;box-shadow:var(--sh)}
+.pastq{width:100%;display:flex;align-items:center;gap:10px;justify-content:space-between;background:none;border:none;padding:12px 14px;cursor:pointer;text-align:left}
+.pastq-t{font-size:13px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pastq-x{flex-shrink:0;width:23px;height:23px;border-radius:50%;background:#eef2f6;color:var(--teal2);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;line-height:1}
+.pasta{border-top:1px solid var(--line);padding:12px 14px;font-size:13px;line-height:1.85;color:#28323d;background:#fbfdfc;animation:aiRise .3s both}
+.pasta-close{margin-top:10px;background:#eef2f6;border:none;border-radius:9px;padding:8px 15px;font-size:12px;font-weight:800;color:var(--teal2);cursor:pointer}
 
 /* settings */
 .kv{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:14px;font-family:monospace}

@@ -550,6 +550,7 @@ function Consult({ aiCreds, aiOn, result, answered, background, setTab }) {
   const [cmsgs, setCmsgs] = useState([]);
   const [cin, setCin] = useState("");
   const [cbusy, setCbusy] = useState(false);
+  const [openIdx, setOpenIdx] = useState(null); // 過去の質問で開いているもの
 
   const cask = async (q) => {
     if (!q.trim() || cbusy || !hasKey) return;
@@ -567,6 +568,19 @@ function Consult({ aiCreds, aiOn, result, answered, background, setTab }) {
   const chips = done
     ? ["最優先の3手は？", "今日やることを教えて", "弱点の直し方を具体的に", "オーナー登録のやり方は？", "パフォーマンス（インサイト）とは？", "説明文の書き方の例は？", "クチコミ返信の例文は？"]
     : ["カテゴリの選び方は？", "写真は何を何枚？", "オーナー登録のやり方は？", "パフォーマンス（インサイト）とは？", "Ask Mapsって何？", "属性はどう設定する？"];
+
+  // 質問と回答をペアに整理（最新は上に固定表示、過去はリストから開く）
+  const exchanges = [];
+  for (let i = 0; i < cmsgs.length; i++) {
+    if (cmsgs[i].role === "user") {
+      const a = cmsgs[i + 1] && cmsgs[i + 1].role === "assistant" ? cmsgs[i + 1].text : null;
+      exchanges.push({ q: cmsgs[i].text, a, idx: exchanges.length });
+    }
+  }
+  const completed = exchanges.filter((e) => e.a != null);
+  const latest = completed[completed.length - 1] || null;
+  const past = completed.slice(0, -1).reverse();
+  const pendingQ = cbusy && exchanges.length && exchanges[exchanges.length - 1].a == null ? exchanges[exchanges.length - 1].q : null;
 
   const qCount = cmsgs.filter((m) => m.role === "user").length;
   const face = qCount >= 8 ? "🤩" : qCount >= 5 ? "😁" : qCount >= 3 ? "😄" : qCount >= 1 ? "😊" : "🙂";
@@ -599,11 +613,25 @@ function Consult({ aiCreds, aiOn, result, answered, background, setTab }) {
         <>
           {!done && <div className="sec"><div className="note" style={{ marginTop: 0 }}>💡 先に「🔍 診断」を受けると、あなたのお店に合わせた相談ができます。
             <button className="go" style={{ background: "none", border: "none", padding: "6px 0 0", display: "block" }} onClick={() => setTab("diag")}>🔍 診断する ›</button></div></div>}
-          <div className="chat">
-            {cmsgs.length === 0 && <div className="msg a">こんにちは！{done ? "診断結果をふまえて、" : ""}Googleマップ集客の「次の一手」を一緒に考えます。下のボタンからどうぞ。</div>}
-            {cmsgs.map((m, i) => <div key={i} className={"msg " + (m.role === "user" ? "u" : "a")}>{m.role === "assistant" ? <div>{renderMd(m.text)}</div> : m.text}</div>)}
-            {cbusy && <div className="msg a"><div className="typing">分析中<span>.</span><span>.</span><span>.</span></div></div>}
+
+          {/* 最新のやりとり（常に上に固定表示） */}
+          <div className="sec">
+            {cbusy ? (
+              <>
+                {pendingQ && <div className="qbubble">{pendingQ}</div>}
+                <div className="abubble"><div className="typing">分析中<span>.</span><span>.</span><span>.</span></div></div>
+              </>
+            ) : latest ? (
+              <>
+                <div className="qbubble">{latest.q}</div>
+                <div className="abubble">{renderMd(latest.a)}</div>
+              </>
+            ) : (
+              <div className="abubble">こんにちは！{done ? "診断結果をふまえて、" : ""}Googleマップ集客の「次の一手」を一緒に考えます。下のボタンか入力からどうぞ。</div>
+            )}
           </div>
+
+          {/* 質問候補＋自由入力 */}
           <div className="chips">{chips.map((c) => <div key={c} className="chip" onClick={() => cask(c)}>{c}</div>)}</div>
           <div className="sec" style={{ paddingTop: 0 }}>
             <div style={{ display: "flex", gap: 8 }}>
@@ -612,6 +640,29 @@ function Consult({ aiCreds, aiOn, result, answered, background, setTab }) {
               <button className="btn p" style={{ width: "auto", padding: "0 16px" }} onClick={() => cask(cin)} disabled={cbusy}>➤</button>
             </div>
           </div>
+
+          {/* 過去の質問（タップで回答を開く／閉じる） */}
+          {past.length > 0 && (
+            <div className="sec">
+              <h2>🕘 過去の質問（{past.length}）</h2>
+              <div className="pastlist">
+                {past.map((ex) => (
+                  <div className="pastitem" key={ex.idx}>
+                    <button className="pastq" onClick={() => setOpenIdx(openIdx === ex.idx ? null : ex.idx)}>
+                      <span className="pastq-t">{ex.q}</span>
+                      <span className="pastq-x">{openIdx === ex.idx ? "×" : "＋"}</span>
+                    </button>
+                    {openIdx === ex.idx && (
+                      <div className="pasta">
+                        {renderMd(ex.a)}
+                        <button className="pasta-close" onClick={() => setOpenIdx(null)}>閉じる</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 
