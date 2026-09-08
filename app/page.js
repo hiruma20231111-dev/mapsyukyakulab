@@ -188,9 +188,16 @@ export default function Page() {
   const runAIDiagnose = async () => {
     if ((!cfg.key && !invite) || aiDiag.loading) return;
     setAiDiag({ loading: true, text: "", err: "" });
-    const answersList = DIAG_ITEMS.filter((it) => answers[it.k] != null).map((it) => ({
-      q: it.q, label: (it.opts.find(([, v]) => v === answers[it.k]) || ["—"])[0],
-    }));
+    const answersList = DIAG_ITEMS.filter((it) => answers[it.k] != null).map((it) => {
+      if (it.multi) {
+        const sel = answers[it.k] || [];
+        const label = sel.includes("none") || sel.length === 0
+          ? "運用していない"
+          : sel.map((id) => (it.opts.find(([, v]) => v === id) || [])[0]).filter(Boolean).join("・");
+        return { q: it.q, label };
+      }
+      return { q: it.q, label: (it.opts.find(([, v]) => v === answers[it.k]) || ["—"])[0] };
+    });
     try {
       const r = await fetch("/api/ai", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -260,6 +267,19 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
   const [perr, setPerr] = useState("");
   const [showInput, setShowInput] = useState(false);
 
+  const toggleMulti = (it, val) => {
+    const cur = answers[it.k] || [];
+    let next;
+    if (val === "none") next = cur.includes("none") ? [] : ["none"];
+    else {
+      const base = cur.filter((x) => x !== "none");
+      next = base.includes(val) ? base.filter((x) => x !== val) : [...base, val];
+    }
+    const na = { ...answers };
+    if (next.length === 0) delete na[it.k]; else na[it.k] = next;
+    setAnswers(na);
+  };
+
   const lookup = async () => {
     if (!link.trim() || fetching) return;
     setFetching(true); setPerr("");
@@ -272,7 +292,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
         const info = { ...d.info, query: d.query };
         setBgInfo(info); try { localStorage.setItem("ml_bg_info", JSON.stringify(info)); } catch {}
         // ★設問は自動更新しない。AIの“予備知識”としてだけ保存する。
-        const bg = `店名:${d.info.name || link.trim()} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"} / サイト:${d.info.hasWebsite ? "あり" : "不明"}`;
+        const bg = `店名:${d.info.name || link.trim()} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"} / サイト:${d.info.hasWebsite ? "あり" : "不明"} / 予約:${d.info.hasReservation ? "あり" : "不明"}${d.info.area ? ` / エリア:${d.info.area}` : ""}`;
         setBackground(bg); try { localStorage.setItem("ml_bg", bg); } catch {}
         setShowInput(false); setLink("");
       }
@@ -285,7 +305,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
       <div className="hero fadein" style={{ paddingBottom: 18 }}>
         <Gear />
         <div className="brand">🔍 セルフ診断</div>
-        <h1 style={{ fontSize: 20 }}>10問で現在地をチェック</h1>
+        <h1 style={{ fontSize: 20 }}>{total}問で現在地をチェック</h1>
         <p>お店のGoogleページを見ながら、当てはまるものを選んでください。<b>{answered}/{total} 問</b></p>
         <div className="hbar"><i style={{ width: (answered / total * 100) + "%" }} /></div>
       </div>
@@ -296,9 +316,12 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
             <div className="storebox fadein">
               <div className="sb-t">🏪 あなたのお店（AI取得・診断に反映済み）</div>
               <div className="sb-n">{bgInfo.name || bgInfo.query || "—"}</div>
-              <div className="sb-m">{bgInfo.category ? `業種: ${bgInfo.category}　` : ""}★{bgInfo.rating ?? "—"}　クチコミ{bgInfo.reviewCount ?? "—"}件{bgInfo.hasWebsite ? "　サイトあり" : ""}</div>
-              <button className="btn s" style={{ marginTop: 8, width: "auto", padding: "6px 12px", fontSize: 12 }} onClick={() => setShowInput(true)}>別のお店で調べ直す</button>
-              <div className="note" style={{ marginTop: 6 }}>この情報を背景に、下の10問の回答と合わせてAIが総評します（違ったら調べ直しを）。</div>
+              <div className="sb-m">{bgInfo.category ? `業種: ${bgInfo.category}　` : ""}★{bgInfo.rating ?? "—"}　クチコミ{bgInfo.reviewCount ?? "—"}件{bgInfo.hasWebsite ? "　サイトあり" : ""}{bgInfo.area ? `　${bgInfo.area}` : ""}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--mut)" }}>この内容で合ってる？</span>
+                <button className="btn s" style={{ width: "auto", padding: "6px 12px", fontSize: 12, color: "#d9403a", borderColor: "#f0b8b3" }} onClick={() => { setShowInput(true); setBgInfo(null); setBackground(""); try { localStorage.removeItem("ml_bg_info"); localStorage.removeItem("ml_bg"); } catch {} }}>❌ 別のお店（再検索）</button>
+              </div>
+              <div className="note" style={{ marginTop: 6 }}>この情報を背景に、下の{total}問の回答と合わせてAIが総評します。</div>
             </div>
           ) : (
             <div className="card fadein">
@@ -321,11 +344,16 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
         {DIAG_ITEMS.map((it, i) => (
           <div className="card fadein" key={it.k} style={{ animationDelay: (i * 0.03) + "s" }}>
             <div className="qlabel">{it.q}</div>
-            <div className="seg">
-              {it.opts.map(([label, val]) => (
-                <button key={label} className={answers[it.k] === val ? "on" : ""}
-                  onClick={() => setAnswers({ ...answers, [it.k]: val })}>{label}</button>
-              ))}
+            <div className="seg" style={it.multi ? { flexWrap: "wrap" } : undefined}>
+              {it.opts.map(([label, val]) => {
+                const on = it.multi ? (answers[it.k] || []).includes(val) : answers[it.k] === val;
+                return (
+                  <button key={label} className={on ? "on" : ""}
+                    onClick={() => (it.multi ? toggleMulti(it, val) : setAnswers({ ...answers, [it.k]: val }))}>
+                    {it.multi && on ? "✓ " : ""}{label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ))}

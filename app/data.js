@@ -188,7 +188,20 @@ export const DIAG_ITEMS = [
     opts: [["値段・説明つき", 100], ["一部だけ", 50], ["ない", 0]], lev: ["contact", "aio"] },
   { k: "action", q: "予約リンクやウェブサイト（来店の入口）は？",
     opts: [["分かりやすい", 100], ["電話のみ", 45], ["ほぼ無い", 10]], lev: ["visit"] },
+  { k: "hp", q: "ホームページ（公式サイト）はある？",
+    opts: [["ある", 100], ["準備中/制作中", 40], ["ない", 0]], lev: ["aio", "display"] },
+  { k: "sns", q: "運用中のSNSは？（複数選択可）", multi: true,
+    opts: [["Instagram", "ig"], ["Facebook", "fb"], ["X", "x"], ["TikTok", "tt"], ["運用なし", "none"]],
+    lev: ["contact", "aio"] },
 ];
+
+// 複数選択(SNS)の配列 → スコア（運用の“面”の広さ＝非構造化サイテーション/接触）
+export function snsScore(arr) {
+  if (!Array.isArray(arr)) return null;
+  const sel = arr.filter((x) => x !== "none");
+  if (arr.includes("none") || sel.length === 0) return 15;
+  return sel.length >= 3 ? 100 : sel.length === 2 ? 75 : 50;
+}
 
 // 弱点→具体アクション（改善プラン用）
 export const ACTIONS = {
@@ -211,8 +224,10 @@ export function guideKeyForItem(it) {
 export function diagnose(answers) {
   const acc = { display: [], contact: [], visit: [], aio: [] };
   for (const it of DIAG_ITEMS) {
-    const v = answers[it.k];
+    let v = answers[it.k];
     if (v == null) continue;
+    if (it.multi) v = snsScore(v);
+    if (typeof v !== "number") continue;
     for (const L of it.lev) acc[L].push(v);
   }
   const levers = {};
@@ -225,7 +240,8 @@ export function diagnose(answers) {
   const grade = total >= 80 ? "A" : total >= 65 ? "B" : total >= 50 ? "C" : "D";
   const weak = DIAG_ITEMS
     .filter((it) => answers[it.k] != null)
-    .map((it) => ({ it, v: answers[it.k] }))
+    .map((it) => ({ it, v: it.multi ? snsScore(answers[it.k]) : answers[it.k] }))
+    .filter((x) => typeof x.v === "number")
     .sort((a, b) => a.v - b.v)
     .slice(0, 3)
     .map(({ it }) => it);
