@@ -173,7 +173,7 @@ export default function Page() {
           body: JSON.stringify({ invite: invite || undefined, key: cfg.key || undefined, input: store }) });
         const d = await r.json();
         if (d.found) {
-          bg = `店名:${d.info.name || store} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"} / サイト:${d.info.hasWebsite ? "あり" : "不明"}`;
+          bg = `店名:${d.info.name || store} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"}${d.info.area ? ` / エリア:${d.info.area}` : ""}`;
           const info = { ...d.info, query: d.query || store };
           localStorage.setItem("ml_bg_info", JSON.stringify(info)); setBgInfo(info);
         } else { bg = `お店:${store}`; const info = { name: store }; localStorage.setItem("ml_bg_info", JSON.stringify(info)); setBgInfo(info); }
@@ -313,7 +313,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
         const info = { ...d.info, query: d.query };
         setBgInfo(info); try { localStorage.setItem("ml_bg_info", JSON.stringify(info)); } catch {}
         // ★設問は自動更新しない。AIの“予備知識”としてだけ保存する。
-        const bg = `店名:${d.info.name || link.trim()} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"} / サイト:${d.info.hasWebsite ? "あり" : "不明"} / 予約:${d.info.hasReservation ? "あり" : "不明"}${d.info.area ? ` / エリア:${d.info.area}` : ""}`;
+        const bg = `店名:${d.info.name || link.trim()} / 業種:${d.info.category || "—"} / ★評価:${d.info.rating ?? "不明"} / クチコミ件数:${d.info.reviewCount ?? "不明"}${d.info.area ? ` / エリア:${d.info.area}` : ""}`;
         setBackground(bg); try { localStorage.setItem("ml_bg", bg); } catch {}
         setShowInput(false); setLink("");
       }
@@ -337,7 +337,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
             <div className="storebox fadein">
               <div className="sb-t">🏪 あなたのお店（AI取得・診断に反映済み）</div>
               <div className="sb-n">{bgInfo.name || bgInfo.query || "—"}</div>
-              <div className="sb-m">{bgInfo.category ? `業種: ${bgInfo.category}　` : ""}★{bgInfo.rating ?? "—"}　クチコミ{bgInfo.reviewCount ?? "—"}件{bgInfo.hasWebsite ? "　サイトあり" : ""}{bgInfo.area ? `　${bgInfo.area}` : ""}</div>
+              <div className="sb-m">{bgInfo.category ? `業種: ${bgInfo.category}　` : ""}★{bgInfo.rating ?? "—"}　クチコミ{bgInfo.reviewCount ?? "—"}件{bgInfo.area ? `　${bgInfo.area}` : ""}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "var(--mut)" }}>この内容で合ってる？</span>
                 <button className="btn s" style={{ width: "auto", padding: "6px 12px", fontSize: 12, color: "#d9403a", borderColor: "#f0b8b3" }} onClick={() => { setShowInput(true); setBgInfo(null); setBackground(""); try { localStorage.removeItem("ml_bg_info"); localStorage.removeItem("ml_bg"); } catch {} }}>❌ 別のお店（再検索）</button>
@@ -365,7 +365,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
         {DIAG_ITEMS.map((it, i) => (
           <div className="card fadein" key={it.k} style={{ animationDelay: (i * 0.03) + "s" }}>
             <div className="qlabel">{it.q}</div>
-            <div className="seg" style={it.multi ? { flexWrap: "wrap" } : undefined}>
+            <div className={"seg" + (it.multi ? " multi" : "")}>
               {it.opts.map(([label, val]) => {
                 const on = it.multi ? (answers[it.k] || []).includes(val) : answers[it.k] === val;
                 return (
