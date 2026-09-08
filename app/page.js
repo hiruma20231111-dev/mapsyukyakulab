@@ -12,7 +12,7 @@ function Info({ k, children }) {
     <span className="term" onClick={(e) => e.stopPropagation()}>
       {children || k}
       <button className="qbtn" onClick={() => setOpen(!open)} aria-label="用語の説明">?</button>
-      {open && <span className="pop"><button className="popx" onClick={() => setOpen(false)}>×</button>{g}</span>}
+      {open && <span className="tpop"><button className="popx" onClick={() => setOpen(false)}>×</button>{g}</span>}
     </span>
   );
 }
@@ -533,7 +533,7 @@ function GuideScreen({ gsel, setGsel }) {
               )}
               {g.key === "review" && <div className="note">※クチコミの“集め方・増やすコツ”は、このアプリでは扱っていません。本格的にやりたいときは「相談」を見てください。</div>}
               {(read[g.key] || justRead) && (
-                <div className={"readdone" + (justRead ? " pop" : "")}>🎉 完読！ このガイドを最後まで読みました</div>
+                <div className="readdone">🎉 完読！ このガイドを最後まで読みました</div>
               )}
               <div ref={endRef} style={{ height: 1 }} />
             </div>
