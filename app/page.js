@@ -401,13 +401,13 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
           {/* AIコンサルの総評（主役・セクションごとにカード表示） */}
           {hasKey ? (
             <>
-              <h2 style={{ marginTop: 20 }}>🩺 AIコンサルの総評</h2>
+              <h2 style={{ marginTop: 20 }}>🩺 AIの診断・評価</h2>
               {!aiDiag.text && !aiDiag.loading && (
-                <p style={{ fontSize: 13, margin: "0 2px 10px", color: "var(--mut)" }}>あなたの回答{background ? "とお店の情報" : ""}をもとに「何が良くて・何が課題か → なぜか」を解説します。</p>
+                <p style={{ fontSize: 13, margin: "0 2px 10px", color: "var(--mut)" }}>あなたの回答{background ? "とお店の情報" : ""}をGBPガイドに照らして、<b>今できていること・足りないこと・直すとどうなるか</b>を評価します（具体的な“今日の一手”は次の「AIに相談」で）。</p>
               )}
               {!aiDiag.text && (
                 <button className="btn p glow" onClick={runAIDiagnose} disabled={!allDone || aiDiag.loading}>
-                  {aiDiag.loading ? "🔎 分析中…" : allDone ? "🩺 AIに総評してもらう" : `あと${total - answered}問 答えると受けられます`}
+                  {aiDiag.loading ? "🔎 分析中…" : allDone ? "🩺 AIに診断・評価してもらう" : `あと${total - answered}問 答えると受けられます`}
                 </button>
               )}
               {aiDiag.loading && <AILoading dialect={cfg.dialect} />}
@@ -415,13 +415,13 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               {aiDiag.text && <AISections text={aiDiag.text} />}
               {aiDiag.text && (
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn p" onClick={() => setTab("ai")}>💬 このままAIに相談する ›</button>
+                  <button className="btn p" onClick={() => setTab("ai")}>💬 具体的な一手をAIに相談する ›</button>
                   <button className="btn s" style={{ width: "auto", padding: "0 14px" }} onClick={runAIDiagnose} disabled={aiDiag.loading}>🔄</button>
                 </div>
               )}
             </>
           ) : (
-            <div className="note">💡 設定でGeminiキーを入れると、<b>AIコンサルが「総評→なぜ→次の一手」まで</b>解説します。</div>
+            <div className="note">💡 設定でGeminiキーを入れると、<b>AIが「今できていること・足りないこと・直すとどうなるか」を診断・評価</b>します。</div>
           )}
 
           <h2>弱点TOP3 → 直すと効くポイント</h2>
