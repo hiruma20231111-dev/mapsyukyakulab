@@ -33,6 +33,29 @@ export async function logEvent(owner, event) {
   } catch {}
 }
 
+// 発行した招待（店舗）を保存：発行時にダッシュボードへ並ぶ
+export async function saveInvite(owner, rec) {
+  const c = getClient();
+  if (!c || !owner || !rec?.id) return;
+  try {
+    await c.hset(`invites:${owner}`, rec.id, JSON.stringify(rec));
+    await c.expire(`invites:${owner}`, 7776000); // 90日
+  } catch {}
+}
+
+// 発行済み招待一覧
+export async function getInvites(owner) {
+  const c = getClient();
+  if (!c || !owner) return [];
+  try {
+    const h = await c.hgetall(`invites:${owner}`);
+    if (!h) return [];
+    return Object.values(h).map((s) => { try { return JSON.parse(s); } catch { return null; } }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 // オーナーのイベント取得（新しい順）
 export async function getEvents(owner) {
   const c = getClient();
