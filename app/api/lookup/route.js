@@ -30,10 +30,11 @@ export async function POST(request) {
   const prompt =
     `あなたは店舗リサーチの担当です。次のお店を必ず Google検索して、Googleマップ/ビジネスプロフィールの公開情報を特定してください。\n` +
     `対象のお店: ${query}\n\n` +
-    `手順: ①「${query}」でGoogle検索 ②Googleマップの該当店を特定 ③その店の公開情報を読み取る。\n` +
+    `手順: ①「${query}」でGoogle検索 ②Googleマップの該当店を特定 ③公開Webに出ている“外形情報”を読み取る（Googleマップ本体に加え、食べログ/ホットペッパー等ポータルや公式サイトも参照して裏取り）。\n` +
+    `【必ず探す外形情報（取れたものは必ず埋める）】店名／業種(カテゴリ)／平均★評価／クチコミ件数／公式サイト有無／予約導線有無／エリア・最寄り。\n` +
     `最後に、次の形のJSONだけを1つ返す（前置き・説明・コードフェンス・出典は不要。JSON以外は書かない）:\n` +
     `{"name":"正式な店名","category":"業種(例:美容院,カフェ)","rating":平均評価の数値,"reviewCount":クチコミ件数の整数,"hasWebsite":true/false,"hasReservation":true/false,"area":"エリア/最寄り"}\n` +
-    `・検索で判明した値を優先。どうしても確認できない項目だけ null。\n` +
+    `・検索で判明した値を優先。どうしても確認できない項目だけ null（推測で埋めない・捏造しない）。\n` +
     `・rating は 3.9 のような数値、reviewCount は 128 のような整数。文字は付けない。`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
