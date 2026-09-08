@@ -479,7 +479,7 @@ function Consult({ cfg, result, answered, background, setTab }) {
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>👤 続ける時間がないときは</div>
           <p style={{ fontSize: 12.5, color: "var(--mut)", margin: "0 0 10px" }}>更新の代行や来店体験づくりのサポートを頼む選択肢もあります（押し売りはしません）。</p>
           <a className="btn s" style={{ display: "block", textAlign: "center", textDecoration: "none" }}
-            href="https://can-ly.com/" target="_blank" rel="noreferrer">📩 専門家に相談してみる</a>
+            href="https://maru-nage.jp/meo-ai-agent/?utm_source=meta&utm_medium=display&utm_campaign=260803_FB_AT_FUSION_260803_AT_FUSION&utm_term=lp001&utm_content=N014_static_1080-1080" target="_blank" rel="noreferrer">📩 専門家に相談してみる</a>
         </div>
       </div>
     </>
