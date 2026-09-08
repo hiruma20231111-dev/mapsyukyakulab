@@ -63,12 +63,24 @@ const LOADING_MSG = {
   std: "AIがあなたのお店を分析しています…", kansai: "AIがめっちゃ分析中やで〜！ちょい待ってな", hakata: "AIが分析しよるけん、ちょっと待っとって〜",
   tohoku: "AIが分析してるだ〜、ちょっこら待ってけろ", nagoya: "AIが分析しとるがや〜、ちょお待っとりゃあ", kyoto: "AIが分析してますえ〜、少々お待ちやす",
 };
+const AIL_STEPS = ["お店の情報を読み込み", "強み・弱みを整理", "改善の優先順位を計算", "AI検索対策をチェック", "総評を仕上げ"];
 function AILoading({ dialect }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((x) => Math.min(x + 1, AIL_STEPS.length - 1)), 1400);
+    return () => clearInterval(t);
+  }, []);
   return (
     <div className="ailoading">
-      <div className="ail-emoji">🔎</div>
+      <div className="ail-orb"><span className="ail-emoji">🔎</span></div>
       <div className="ail-msg">{LOADING_MSG[dialect] || LOADING_MSG.std}</div>
-      <div className="ail-sub">お店の情報＋回答をプロ視点でチェック中<span className="typing"><span>.</span><span>.</span><span>.</span></span></div>
+      <div className="ail-steps">
+        {AIL_STEPS.map((s, k) => (
+          <div key={k} className={"ail-step" + (k < i ? " done" : k === i ? " now" : "")}>
+            <span className="ail-ck">{k < i ? "✓" : "●"}</span>{s}
+          </div>
+        ))}
+      </div>
       <div className="ail-bar"><i /></div>
     </div>
   );
@@ -129,6 +141,9 @@ export default function Page() {
     });
     setBackground(localStorage.getItem("ml_bg") || "");
     try { const bi = localStorage.getItem("ml_bg_info"); if (bi) setBgInfo(JSON.parse(bi)); } catch {}
+    // 直前の診断（回答＋AI総評）を復元：再ログインしても再診断するまで残す
+    try { const a = localStorage.getItem("ml_answers"); if (a) { const p = JSON.parse(a); if (p && typeof p === "object") setAnswers(p); } } catch {}
+    try { const t = localStorage.getItem("ml_aidiag"); if (t) setAiDiag({ loading: false, text: t, err: "" }); } catch {}
     // 招待リンク（?k=TOKEN）＝商談アドバイザーモード。localStorageにも保持し期限まで持ち帰り利用可
     try {
       const url = new URL(window.location.href);
@@ -172,6 +187,11 @@ export default function Page() {
   const aiMode = !!cfg.key || !!invite;
   const aiCreds = { key: cfg.key || undefined, invite: invite || undefined, model: cfg.model, dialect: cfg.dialect, tone: cfg.tone };
 
+  // 回答は変わるたびに保存（空のときは復元を上書きしないようスキップ）
+  useEffect(() => {
+    try { if (Object.keys(answers).length) localStorage.setItem("ml_answers", JSON.stringify(answers)); } catch {}
+  }, [answers]);
+
   const result = useMemo(() => diagnose(answers), [answers]);
   const answered = Object.keys(answers).length;
 
@@ -205,6 +225,7 @@ export default function Page() {
           diagnosis: { total: result.total, grade: result.grade, levers: result.levers, answers: answersList } }),
       });
       const d = await r.json();
+      if (!d.error && d.text) { try { localStorage.setItem("ml_aidiag", d.text); } catch {} }
       setAiDiag({ loading: false, text: d.error ? "" : d.text, err: d.error || "" });
     } catch { setAiDiag({ loading: false, text: "", err: "通信エラー" }); }
   };
@@ -364,11 +385,11 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
           <h2>いまの状態（強み・弱み）</h2>
           <div style={{ fontWeight: 800, fontSize: 15, margin: "0 2px 8px" }}>{verdictText(result.total)}</div>
           <div className="levpills">
-            {LEVERS.map((L) => {
+            {LEVERS.map((L, li) => {
               const v = result.levers[L.k] ?? 0;
               const q = v >= 72 ? { m: "◎", t: "強い", c: "var(--good)", bg: "#e7f6f3" } : v >= 48 ? { m: "○", t: "ふつう", c: "var(--warn)", bg: "#fff6e6" } : { m: "△", t: "伸びしろ", c: "var(--bad)", bg: "#fdece9" };
               return (
-                <div className="levpill" key={L.k} style={{ background: q.bg, borderColor: q.c + "44" }}>
+                <div className="levpill" key={L.k} style={{ background: q.bg, borderColor: q.c + "44", animationDelay: (li * 0.08) + "s" }}>
                   <div className="lp-nm">{L.nm}</div>
                   <div className="lp-q" style={{ color: q.c }}>{q.m} {q.t}</div>
                 </div>
@@ -424,12 +445,43 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
 
 function GuideScreen({ gsel, setGsel }) {
   const g = GUIDE.find((x) => x.key === gsel);
+  const [read, setRead] = useState({});
+  const [justRead, setJustRead] = useState(false);
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    try { const r = localStorage.getItem("ml_read_guides"); if (r) setRead(JSON.parse(r) || {}); } catch {}
+  }, []);
+  useEffect(() => { setJustRead(false); }, [gsel]);
+
+  // 詳細の最後までスクロールしたら「完読！」
+  useEffect(() => {
+    if (!g || !endRef.current) return;
+    const el = endRef.current;
+    const io = new IntersectionObserver((ents) => {
+      if (ents.some((e) => e.isIntersecting)) {
+        setRead((prev) => {
+          if (prev[g.key]) return prev;
+          const next = { ...prev, [g.key]: true };
+          try { localStorage.setItem("ml_read_guides", JSON.stringify(next)); } catch {}
+          setJustRead(true);
+          return next;
+        });
+      }
+    }, { threshold: 1, rootMargin: "0px 0px -40px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [g]);
+
+  const readCount = GUIDE.filter((x) => read[x.key]).length;
+
   return (
     <>
       <div className="hero" style={{ paddingBottom: 18 }}>
         <Gear />
         <div className="brand">📚 GBP最適化ガイド</div>
         <h1 style={{ fontSize: 20 }}>{g ? g.title : "何を直すと集客に効く？"}</h1>
+        {!g && <p style={{ fontSize: 12, opacity: .92, marginTop: 6 }}>📖 完読 {readCount}/{GUIDE.length}{readCount >= GUIDE.length ? "　🏆 全ガイド制覇！" : ""}</p>}
       </div>
       <div className="sec">
         {!g && (
@@ -437,7 +489,7 @@ function GuideScreen({ gsel, setGsel }) {
             {[...GUIDE].sort((a, b) => (a.priority || 9) - (b.priority || 9)).map((x) => (
               <button key={x.key} className="g" onClick={() => setGsel(x.key)}>
                 <span className="em">{x.emo}</span>
-                <div><div className="nm">{x.title}</div><div className="ds">{x.what.slice(0, 24)}…</div></div>
+                <div><div className="nm">{x.title} {read[x.key] && <span className="readmark">✓ 完読</span>}</div><div className="ds">{x.what.slice(0, 24)}…</div></div>
                 {x.priority <= 2 ? <span className="prio">{x.priority === 1 ? "最優先" : "優先"}</span>
                   : <span className="lv">{x.levers.map((l) => LEVERS.find((y) => y.k === l).nm).join("/")}</span>}
               </button>
@@ -477,6 +529,10 @@ function GuideScreen({ gsel, setGsel }) {
                 </div>
               )}
               {g.key === "review" && <div className="note">※クチコミの“集め方・増やすコツ”は、このアプリでは扱っていません。本格的にやりたいときは「相談」を見てください。</div>}
+              {(read[g.key] || justRead) && (
+                <div className={"readdone" + (justRead ? " pop" : "")}>🎉 完読！ このガイドを最後まで読みました</div>
+              )}
+              <div ref={endRef} style={{ height: 1 }} />
             </div>
           </>
         )}
@@ -509,13 +565,26 @@ function Consult({ aiCreds, aiOn, result, answered, background, setTab }) {
     ? ["最優先の3手は？", "今日やることを教えて", "弱点の直し方を具体的に", "オーナー登録のやり方は？", "パフォーマンス（インサイト）とは？", "説明文の書き方の例は？", "クチコミ返信の例文は？"]
     : ["カテゴリの選び方は？", "写真は何を何枚？", "オーナー登録のやり方は？", "パフォーマンス（インサイト）とは？", "Ask Mapsって何？", "属性はどう設定する？"];
 
+  const qCount = cmsgs.filter((m) => m.role === "user").length;
+  const face = qCount >= 8 ? "🤩" : qCount >= 5 ? "😁" : qCount >= 3 ? "😄" : qCount >= 1 ? "😊" : "🙂";
+  const mood = qCount >= 8 ? "最高にゴキゲン！たくさん相談ありがとう" : qCount >= 5 ? "ノッてきました！どんどん聞いてね" : qCount >= 3 ? "いい調子！一緒に良くしていきましょう" : qCount >= 1 ? "よろしくお願いします！" : "質問するほど元気になります";
+
   return (
     <>
       <div className="aihero fadein">
         <Gear />
         <div className="b">💬 AIに相談 {hasKey && <span className="badge" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }}>🤖 連携中</span>}</div>
         <h1>次の一手を、一緒に決めよう</h1>
-        <p style={{ fontSize: 12, opacity: .9, marginTop: 4 }}>{done ? `あなたの診断（${result.total}点）をふまえて答えます` : "用語・やり方から、お店の改善相談まで何でも"}</p>
+        <p style={{ fontSize: 12, opacity: .9, marginTop: 4 }}>{done ? "あなたの診断結果をふまえて答えます" : "用語・やり方から、お店の改善相談まで何でも"}</p>
+        {hasKey && (
+          <div className="aibuddy">
+            <span className="face" key={face}>{face}</span>
+            <div className="aibuddy-t">
+              <div className="mood">{mood}</div>
+              <div className="hearts">{qCount > 0 ? "❤".repeat(Math.min(qCount, 6)) + (qCount > 6 ? "…" : "") : "🤍🤍🤍"}</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {!hasKey ? (
@@ -572,7 +641,7 @@ function splitSections(text) {
 }
 function AISections({ text }) {
   return splitSections(text).map((sec, i) => (
-    <div className="aisec fadein" key={i} style={{ animationDelay: (i * 0.05) + "s" }}>
+    <div className="aisec" key={i} style={{ animationDelay: (i * 0.11) + "s" }}>
       {sec.h && <div className="aisec-h">{sec.h}</div>}
       <div className="aisec-b">{renderMd(sec.body.join("\n"))}</div>
     </div>
