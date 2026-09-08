@@ -56,6 +56,20 @@ export async function getInvites(owner) {
   }
 }
 
+// 店舗を削除（招待レコード＋その店のイベントを消す）
+export async function deleteStore(owner, id) {
+  const c = getClient();
+  if (!c || !owner || !id) return;
+  try {
+    await c.hdel(`invites:${owner}`, id);
+    const key = `usage:${owner}`;
+    const arr = await c.lrange(key, 0, 499);
+    const keep = (arr || []).filter((s) => { try { return JSON.parse(s).id !== id; } catch { return true; } });
+    await c.del(key);
+    if (keep.length) await c.rpush(key, ...keep); // 新しい順のまま復元
+  } catch {}
+}
+
 // オーナーのイベント取得（新しい順）
 export async function getEvents(owner) {
   const c = getClient();

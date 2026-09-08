@@ -30,6 +30,14 @@ export default function Admin() {
     navigator.clipboard?.writeText(urlFromToken(token));
     setCopied(id); setTimeout(() => setCopied(""), 1500);
   };
+  const delStore = async (id, label) => {
+    if (!window.confirm(`「${label}」を履歴から削除しますか？（元に戻せません）`)) return;
+    try {
+      await fetch("/api/delete", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ geminiKey: gkey.trim(), id }) });
+      loadUsage();
+    } catch {}
+  };
 
   useEffect(() => {
     const k = localStorage.getItem("ml_admin_gkey") || "";
@@ -156,12 +164,11 @@ export default function Admin() {
                 {p.last ? `最終利用: ${new Date(p.last).toLocaleString("ja-JP")}` : (p.created ? `発行: ${new Date(p.created).toLocaleDateString("ja-JP")}` : "")}
                 　{p.exp ? `／ 期限: ${new Date(p.exp).toLocaleDateString("ja-JP")}` : ""}　{isOpen ? "▲" : "▼"}
               </div>
-              {p.token && (
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
-                  <button className="btn s" style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={() => showQR(p.label, p.token)}>📱 QRを表示</button>
-                  <button className="btn s" style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={() => copyLink(p.token, p.id)}>{copied === p.id ? "✅ コピー済" : "🔗 リンクをコピー"}</button>
-                </div>
-              )}
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
+                {p.token && <button className="btn s" style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={() => showQR(p.label, p.token)}>📱 QRを表示</button>}
+                {p.token && <button className="btn s" style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={() => copyLink(p.token, p.id)}>{copied === p.id ? "✅ コピー済" : "🔗 リンクをコピー"}</button>}
+                <button className="btn s" style={{ width: "auto", padding: "7px 12px", fontSize: 12, color: "#d9403a", borderColor: "#f0b8b3" }} onClick={() => delStore(p.id, p.label)}>🗑 削除</button>
+              </div>
               {isOpen && p.recent && p.recent.length > 0 && (
                 <div style={{ borderTop: "1px dashed var(--line)", marginTop: 8, paddingTop: 8 }}>
                   <div style={{ fontSize: 11, color: "var(--mut)", marginBottom: 4 }}>最近のAI質問</div>

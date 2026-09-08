@@ -120,6 +120,8 @@ export default function Page() {
   const [aiDiag, setAiDiag] = useState({ loading: false, text: "", err: "" });
   const [invite, setInvite] = useState("");
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [expired, setExpired] = useState(false);
+  const [daysLeft, setDaysLeft] = useState(null);
 
   useEffect(() => {
     setCfg({
@@ -139,6 +141,12 @@ export default function Page() {
       else { const saved = localStorage.getItem("ml_invite"); if (saved) { inv = saved; setInvite(saved); } }
       // 招待モードの初回だけオンボーディング
       if (inv && !localStorage.getItem("ml_advisor_setup")) setNeedsSetup(true);
+      // 招待トークンの有効期限チェック（期限切れならその店舗は停止）
+      if (inv) {
+        fetch("/api/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: inv }) })
+          .then((r) => r.json()).then((d) => { if (d.expired || d.invalid) setExpired(true); else setDaysLeft(d.daysLeft); })
+          .catch(() => {});
+      }
     } catch {}
   }, []);
 
@@ -220,10 +228,34 @@ export default function Page() {
     setBusy(false);
   };
 
+  if (expired) return (
+    <div className="app">
+      <div className="hero" style={{ paddingBottom: 40 }}>
+        <div className="brand">📍 マップ集客ラボ</div>
+        <h1 style={{ fontSize: 22 }}>この招待リンクは<br />有効期限が終了しました</h1>
+      </div>
+      <div className="sec">
+        <div className="card" style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 40, margin: "6px 0" }}>⏳</div>
+          <p style={{ fontSize: 14, margin: "0 0 6px", fontWeight: 700 }}>お試し期間（設定日数）が終了しました。</p>
+          <p style={{ fontSize: 13, color: "var(--mut)", margin: 0 }}>引き続き使いたい場合は、担当者に新しい招待リンクをご依頼ください。</p>
+          <a className="btn p" style={{ display: "block", textAlign: "center", textDecoration: "none", marginTop: 14 }}
+            href="https://maru-nage.jp/meo-ai-agent/?utm_source=meta&utm_medium=display&utm_campaign=260803_FB_AT_FUSION_260803_AT_FUSION&utm_term=lp001&utm_content=N014_static_1080-1080" target="_blank" rel="noreferrer">📩 相談・お問い合わせ</a>
+        </div>
+      </div>
+    </div>
+  );
+
   if (needsSetup) return <Onboarding cfg={cfg} onDone={finishSetup} />;
 
   return (
     <div className="app">
+      {invite && daysLeft != null && (
+        <div style={{ textAlign: "center", fontSize: 11.5, fontWeight: 700, padding: "5px 8px",
+          background: daysLeft <= 3 ? "#fff6e6" : "#e7f6f3", color: daysLeft <= 3 ? "#c07a13" : "#0b7d70" }}>
+          🎫 お試し期間：残り{daysLeft}日
+        </div>
+      )}
       {tab === "home" && (aiMode ? <HomeAI msgs={msgs} busy={busy} ask={ask} input={input} setInput={setInput} setTab={setTab} /> : <HomeN setTab={setTab} />)}
       {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
