@@ -136,6 +136,11 @@ export default function Page() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [expired, setExpired] = useState(false);
   const [daysLeft, setDaysLeft] = useState(null);
+  const [fs, setFs] = useState(1); // 文字サイズ倍率
+
+  useEffect(() => { const v = parseFloat(localStorage.getItem("ml_fs") || "1") || 1; setFs(v); }, []);
+  useEffect(() => { document.documentElement.style.setProperty("--fs", String(fs)); }, [fs]);
+  const setFont = (v) => { setFs(v); try { localStorage.setItem("ml_fs", String(v)); } catch {} };
 
   useEffect(() => {
     setCfg({
@@ -269,7 +274,15 @@ export default function Page() {
           🎫 お試し期間：残り{daysLeft}日
         </div>
       )}
-      {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
+      <div className="fsbar">
+        <span className="fsbar-l">🔠 文字サイズ</span>
+        <div className="fsseg">
+          {[["小", 0.9], ["中", 1], ["大", 1.18]].map(([lab, v]) => (
+            <button key={lab} className={Math.abs(fs - v) < 0.01 ? "on" : ""} onClick={() => setFont(v)}>{lab}</button>
+          ))}
+        </div>
+      </div>
+      {tab === "diag" &&<Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
       {tab === "ai" && <Consult aiCreds={aiCreds} aiOn={aiMode} result={result} answered={answered} background={background} setTab={setTab} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
 

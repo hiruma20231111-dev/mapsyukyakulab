@@ -38,6 +38,7 @@ export default function Settings() {
     setDialect(localStorage.getItem("ml_dialect") || "std");
     setTone(localStorage.getItem("ml_tone") || "polite");
     setAdvisor(!!localStorage.getItem("ml_invite")); // 招待リンク経由=アドバイザー
+    try { document.documentElement.style.setProperty("--fs", localStorage.getItem("ml_fs") || "1"); } catch {}
   }, []);
 
   const save = () => {

@@ -71,6 +71,7 @@ export default function Admin() {
   };
 
   useEffect(() => {
+    try { document.documentElement.style.setProperty("--fs", localStorage.getItem("ml_fs") || "1"); } catch {}
     const k = localStorage.getItem("ml_admin_gkey") || "";
     setGkey(k);
     if (k) loadUsage(k);
