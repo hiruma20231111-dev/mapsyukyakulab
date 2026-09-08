@@ -1,13 +1,20 @@
 // Geminiの Google検索グラウンディング で、リンク/店名から公開情報を"下書き"取得
-// ユーザー自身のGeminiキーを使う（Places API不要・オーナー課金なし）。あくまで概算＝要確認。
+// 自前キー or 招待トークン(サーバーキー)。あくまで概算＝要確認。
+import { verifyToken } from "../../lib/invite";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request) {
   let b;
   try { b = await request.json(); } catch { return json({ error: "リクエスト不正" }, 400); }
-  const { key, model = "gemini-2.5-flash", input } = b || {};
-  if (!key) return json({ error: "この機能はGeminiキーが必要です（設定で入力）。" }, 400);
+  const { key, invite, model = "gemini-2.5-flash", input } = b || {};
+  let apiKey = key;
+  if (invite) {
+    const v = verifyToken(invite);
+    if (!v || v.expired) return json({ error: "招待リンクが無効か期限切れです。" });
+    apiKey = process.env.GEMINI_SERVER_KEY;
+  }
+  if (!apiKey) return json({ error: "この機能はGeminiキーが必要です（設定で入力）。" }, 400);
   if (!input || !input.trim()) return json({ error: "リンクか店名を入力してください。" }, 400);
 
   // リンクなら「店名」を抽出して検索クエリにする（短縮リンクはリダイレクト展開）
@@ -24,7 +31,7 @@ export async function POST(request) {
     `{"name":"店名","category":"業種","rating":数値かnull,"reviewCount":整数かnull,"hasWebsite":true/false/null,"hasReservation":true/false/null}\n` +
     `確証が持てない項目は必ず null。評価・件数は最新の公開値をできるだけ。`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const payload = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     tools: [{ google_search: {} }],

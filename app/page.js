@@ -68,6 +68,7 @@ export default function Page() {
   const [busy, setBusy] = useState(false);
   const [background, setBackground] = useState("");
   const [aiDiag, setAiDiag] = useState({ loading: false, text: "", err: "" });
+  const [invite, setInvite] = useState("");
 
   useEffect(() => {
     setCfg({
@@ -76,8 +77,16 @@ export default function Page() {
       dialect: localStorage.getItem("ml_dialect") || "std",
       tone: localStorage.getItem("ml_tone") || "polite",
     });
+    // 招待リンク（?k=TOKEN）＝商談アドバイザーモード。localStorageにも保持し期限まで持ち帰り利用可
+    try {
+      const url = new URL(window.location.href);
+      const k = url.searchParams.get("k");
+      if (k) { setInvite(k); localStorage.setItem("ml_invite", k); }
+      else { const saved = localStorage.getItem("ml_invite"); if (saved) setInvite(saved); }
+    } catch {}
   }, []);
-  const aiMode = !!cfg.key;
+  const aiMode = !!cfg.key || !!invite;
+  const aiCreds = { key: cfg.key || undefined, invite: invite || undefined, model: cfg.model, dialect: cfg.dialect, tone: cfg.tone };
 
   const result = useMemo(() => diagnose(answers), [answers]);
   const answered = Object.keys(answers).length;
@@ -91,8 +100,7 @@ export default function Page() {
     try {
       const r = await fetch("/api/ai", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: cfg.key, model: cfg.model, dialect: cfg.dialect, tone: cfg.tone,
-          mode: "diagnose", background,
+        body: JSON.stringify({ ...aiCreds, mode: "diagnose", background,
           diagnosis: { total: result.total, grade: result.grade, levers: result.levers, answers: answersList } }),
       });
       const d = await r.json();
@@ -113,8 +121,7 @@ export default function Page() {
     try {
       const r = await fetch("/api/ai", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: cfg.key, model: cfg.model, dialect: cfg.dialect, tone: cfg.tone,
-          question: q, diagnosis, history: msgs.slice(-6) }),
+        body: JSON.stringify({ ...aiCreds, question: q, diagnosis, history: msgs.slice(-6) }),
       });
       const d = await r.json();
       setMsgs((m) => [...m, { role: "assistant", text: d.error ? "⚠️ " + d.error : d.text }]);
@@ -127,9 +134,9 @@ export default function Page() {
   return (
     <div className="app">
       {tab === "home" && (aiMode ? <HomeAI msgs={msgs} busy={busy} ask={ask} input={input} setInput={setInput} setTab={setTab} /> : <HomeN setTab={setTab} />)}
-      {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} background={background} setBackground={setBackground} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
+      {tab === "diag" && <Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
-      {tab === "consult" && <Consult cfg={cfg} result={result} answered={answered} background={background} setTab={setTab} />}
+      {tab === "consult" && <Consult cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} result={result} answered={answered} background={background} setTab={setTab} />}
 
       <nav className="tabbar">
         {[["home", aiMode ? "🤖" : "🏠", aiMode ? "AI" : "ホーム"], ["diag", "🔍", "診断"], ["guide", "📚", "ガイド"], ["consult", "💬", "相談"]]
@@ -220,11 +227,11 @@ function HomeAI({ msgs, busy, ask, input, setInput, setTab }) {
   );
 }
 
-function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, background, setBackground, aiDiag, runAIDiagnose }) {
+function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiCreds, aiOn, background, setBackground, aiDiag, runAIDiagnose }) {
   const total = DIAG_ITEMS.length;
   const done = answered >= 6;
   const allDone = answered >= total;
-  const hasKey = !!cfg?.key;
+  const hasKey = aiOn;
   const [link, setLink] = useState("");
   const [fetching, setFetching] = useState(false);
   const [info, setInfo] = useState(null);
@@ -235,7 +242,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, bac
     setFetching(true); setPerr(""); setInfo(null);
     try {
       const r = await fetch("/api/lookup", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: cfg.key, model: cfg.model, input: link.trim() }) });
+        body: JSON.stringify({ ...aiCreds, input: link.trim() }) });
       const d = await r.json();
       if (d.error) setPerr(d.error);
       else if (d.found) {
@@ -415,8 +422,8 @@ function GuideScreen({ gsel, setGsel }) {
   );
 }
 
-function Consult({ cfg, result, answered, background, setTab }) {
-  const hasKey = !!cfg?.key;
+function Consult({ cfg, aiCreds, aiOn, result, answered, background, setTab }) {
+  const hasKey = aiOn;
   const done = answered >= 6;
   const [cmsgs, setCmsgs] = useState([]);
   const [cin, setCin] = useState("");
@@ -428,8 +435,7 @@ function Consult({ cfg, result, answered, background, setTab }) {
     const diag = done ? { total: result.total, grade: result.grade, weak: result.weak.map((it) => it.q) } : null;
     try {
       const r = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: cfg.key, model: cfg.model, dialect: cfg.dialect, tone: cfg.tone,
-          question: q, diagnosis: diag, background, history: cmsgs.slice(-6) }) });
+        body: JSON.stringify({ ...aiCreds, question: q, diagnosis: diag, background, history: cmsgs.slice(-6) }) });
       const d = await r.json();
       setCmsgs((m) => [...m, { role: "assistant", text: d.error ? "⚠️ " + d.error : d.text }]);
     } catch { setCmsgs((m) => [...m, { role: "assistant", text: "⚠️ 通信エラー" }]); }
