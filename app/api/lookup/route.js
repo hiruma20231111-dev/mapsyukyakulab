@@ -38,18 +38,22 @@ export async function POST(request) {
     `・rating は 3.9 のような数値、reviewCount は 128 のような整数。文字は付けない。`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const gen = { temperature: 0, maxOutputTokens: 1200 };
+  // flashは“思考(thinking)”が出力枠を食い、JSONが出る前に切れて空になる → 思考を切る
+  if (/flash/i.test(model)) gen.thinkingConfig = { thinkingBudget: 0 };
   const payload = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     tools: [{ google_search: {} }],
-    generationConfig: { temperature: 0, maxOutputTokens: 800 },
+    generationConfig: gen,
   };
   try {
     const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const d = await r.json();
     if (!r.ok) return json({ error: d?.error?.message || `検索エラー(${r.status})` });
-    let text = d?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
+    let text = d?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+    text = text.replace(/```json/gi, "").replace(/```/g, "").trim();
     const m = text.match(/\{[\s\S]*\}/);
-    if (!m) return json({ error: "うまく取得できませんでした。店名を正式表記にするか、手入力でお願いします。" });
+    if (!m) return json({ error: `「${query}」の情報をうまく取得できませんでした。店名を正式表記（駅名や地域を足す）にするか、下の設問に手動でご回答ください。`, query });
     let info;
     try { info = JSON.parse(m[0]); } catch { return json({ error: "取得結果の解析に失敗しました。手入力でお願いします。" }); }
 
@@ -65,27 +69,54 @@ export async function POST(request) {
   }
 }
 
-// Googleマップ等のURL → 店名クエリ
+// Googleマップ等のURL → 店名クエリ（短縮リンク展開・同意画面・cidページにも対応）
 async function urlToQuery(u) {
-  let url = u;
+  let finalUrl = u, html = "";
   try {
-    // 短縮リンク(maps.app.goo.gl / goo.gl / g.co)はリダイレクト展開
-    if (/(maps\.app\.goo\.gl|goo\.gl|g\.co)/i.test(u)) {
-      const r = await fetch(u, { redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Accept-Language": "ja" } });
-      url = r.url || u;
-    }
-    const dec = decodeURIComponent(url);
-    // /maps/place/<NAME>/ から店名
-    let m = dec.match(/\/maps\/place\/([^/@?]+)/);
-    if (m && m[1]) return m[1].replace(/\+/g, " ").trim();
-    // ?q=<NAME> / &query=<NAME>
-    m = dec.match(/[?&](?:q|query)=([^&]+)/);
-    if (m && m[1]) return m[1].replace(/\+/g, " ").trim();
-    // 座標だけ等で店名が取れない場合はnull
-    return null;
-  } catch {
-    return null;
+    const r = await fetch(u, { redirect: "follow",
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36", "Accept-Language": "ja" } });
+    finalUrl = r.url || u;
+    try { html = await r.text(); } catch {}
+  } catch {}
+
+  // 同意画面(consent.google.com)に飛ばされたら continue= の中の実URLを使う
+  if (/consent\.google\./i.test(finalUrl)) {
+    const c = finalUrl.match(/[?&]continue=([^&]+)/);
+    if (c && c[1]) { try { finalUrl = decodeURIComponent(c[1]); } catch {} }
   }
+
+  // URL から店名を取る
+  const fromUrl = (url) => {
+    try {
+      const dec = decodeURIComponent(url);
+      let m = dec.match(/\/maps\/place\/([^/@?]+)/);
+      if (m && m[1]) return m[1].replace(/\+/g, " ").trim();
+      m = dec.match(/[?&](?:q|query)=([^&]+)/);
+      if (m && m[1] && !/^[-0-9.,\s]+$/.test(m[1])) return decodeURIComponent(m[1].replace(/\+/g, " ")).trim(); // 座標だけは除外
+    } catch {}
+    return "";
+  };
+  let name = fromUrl(finalUrl) || fromUrl(u);
+
+  // URLで取れない（cid=… 等）ときは、開いたページの og:title / title から店名を拾う
+  if (!name && html) {
+    const pick = (re) => { const m = html.match(re); return m && m[1] ? m[1] : ""; };
+    let t = pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+         || pick(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)
+         || pick(/<meta[^>]+itemprop=["']name["'][^>]+content=["']([^"']+)["']/i)
+         || pick(/<title[^>]*>([^<]+)<\/title>/i);
+    if (t) name = cleanTitle(t);
+  }
+  return name || null;
+}
+
+// タイトルから「 - Google マップ」「 · ★4.2 · カフェ」などの付帯を除去
+function cleanTitle(t) {
+  return String(t)
+    .replace(/\s*[-–—|]\s*Google\s*(マップ|Maps).*$/i, "")
+    .replace(/\s+·\s+.*$/, "")
+    .replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .trim();
 }
 
 function json(o, s = 200) { return new Response(JSON.stringify(o), { status: s, headers: { "Content-Type": "application/json" } }); }
