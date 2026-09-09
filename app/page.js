@@ -238,11 +238,16 @@ export default function Page() {
       }
       return { q: it.q, label: (it.opts.find(([, v]) => v === answers[it.k]) || ["—"])[0] };
     });
+    const weakItems = DIAG_ITEMS
+      .map((it) => ({ it, v: it.multi ? snsScore(answers[it.k]) : answers[it.k] }))
+      .filter((x) => typeof x.v === "number" && x.v < 72)
+      .sort((a, b) => a.v - b.v)
+      .map(({ it }) => ({ k: it.k, q: it.q }));
     try {
       const r = await fetch("/api/ai", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...aiCreds, mode: "diagnose", background,
-          diagnosis: { total: result.total, grade: result.grade, levers: result.levers, answers: answersList } }),
+          diagnosis: { total: result.total, grade: result.grade, levers: result.levers, answers: answersList }, weakItems }),
       });
       const d = await r.json();
       if (!d.error && d.text) { try { localStorage.setItem("ml_aidiag", d.text); } catch {} }
@@ -407,57 +412,22 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
       )}
 
       <div className="sec">
-        {DIAG_ITEMS.map((it, i) => {
-          const val = it.multi ? snsScore(answers[it.k]) : answers[it.k];
-          const answeredThis = it.multi ? (answers[it.k] || []).length > 0 : answers[it.k] != null;
-          const weak = answeredThis && typeof val === "number" && val < 72; // “強い(72)”未満＝伸びしろ
-          const g = guideForItem(it);
-          const st = interest[it.k];
-          return (
-            <div className="card fadein" key={it.k} style={{ animationDelay: (i * 0.03) + "s" }}>
-              <div className="qlabel">{it.q}</div>
-              <div className={"seg" + (it.multi ? " multi" : "")}>
-                {it.opts.map(([label, optval]) => {
-                  const on = it.multi ? (answers[it.k] || []).includes(optval) : answers[it.k] === optval;
-                  return (
-                    <button key={label} className={on ? "on" : ""}
-                      onClick={() => (it.multi ? toggleMulti(it, optval) : setAnswers({ ...answers, [it.k]: optval }))}>
-                      {it.multi && on ? "✓ " : ""}{label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 弱い回答をしたら、その場で“これ興味ある？”→ 興味ありならこの項目だけAIに相談 */}
-              {weak && (
-                <div className="qintent">
-                  {!st && (
-                    <>
-                      <div className="qi-q">👉 これ、興味ある？</div>
-                      <div className="qi-btns">
-                        <button className="ib yes" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "yes" })); track && track("interest", it.k); }}>🔥 興味ある</button>
-                        <button className="ib no" onClick={() => setInterest((s) => ({ ...s, [it.k]: "no" }))}>😌 一旦後回し</button>
-                      </div>
-                    </>
-                  )}
-                  {st === "yes" && (
-                    <div className="qi-open">
-                      {hasKey ? (
-                        <button className="fx-consult" onClick={() => { track && track("consult_jump", it.k); onAsk(consultQuestionFor(it)); }}>💬 うちのお店に合わせてAIに相談 ›</button>
-                      ) : (
-                        <div className="fx-note">💡 設定でGeminiキーを入れると、この場でAIに相談できます。</div>
-                      )}
-                      <button className="fx-guide" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 ガイドで直し方を見る</button>
-                    </div>
-                  )}
-                  {st === "no" && (
-                    <div className="qi-skip">😌 一旦後回しにしますね。<button className="qi-reopen" onClick={() => setInterest((s) => { const n = { ...s }; delete n[it.k]; return n; })}>やっぱり気になる</button></div>
-                  )}
-                </div>
-              )}
+        {DIAG_ITEMS.map((it, i) => (
+          <div className="card fadein" key={it.k} style={{ animationDelay: (i * 0.03) + "s" }}>
+            <div className="qlabel">{it.q}</div>
+            <div className={"seg" + (it.multi ? " multi" : "")}>
+              {it.opts.map(([label, optval]) => {
+                const on = it.multi ? (answers[it.k] || []).includes(optval) : answers[it.k] === optval;
+                return (
+                  <button key={label} className={on ? "on" : ""}
+                    onClick={() => (it.multi ? toggleMulti(it, optval) : setAnswers({ ...answers, [it.k]: optval }))}>
+                    {it.multi && on ? "✓ " : ""}{label}
+                  </button>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
 
       {done && (
@@ -492,7 +462,11 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               )}
               {aiDiag.loading && <AILoading dialect={cfg.dialect} />}
               {aiDiag.err && <div className="verdict bad">⚠️ {aiDiag.err}</div>}
-              {aiDiag.text && <AISections text={aiDiag.text} />}
+              {aiDiag.text && <AISections text={aiDiag.text} renderGate={(key) => {
+                const it = DIAG_ITEMS.find((d) => d.k === key);
+                if (!it) return null;
+                return <InterestGate it={it} interest={interest} setInterest={setInterest} hasKey={hasKey} onAsk={onAsk} track={track} setGsel={setGsel} setTab={setTab} />;
+              }} />}
               {aiDiag.text && (
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn p" style={{ flex: 1, minWidth: 0 }} onClick={() => setTab("ai")}>💬 AIに相談する ›</button>
@@ -769,13 +743,68 @@ function splitSections(text) {
   }
   return secs.filter((x) => x.h || x.body.join("").trim());
 }
-function AISections({ text }) {
+// AI出力の @@FIX:key@@ を検出して、その位置に興味ゲートを差し込みつつ本文をレンダリング
+const FIX_RE = /@@FIX:([a-zA-Z]+)@@/;
+function renderBodyWithGates(text, renderGate) {
+  const lines = String(text ?? "").split("\n");
+  const out = [];
+  let buf = [];
+  const flush = () => { if (buf.length) { out.push(<div key={"b" + out.length}>{renderMd(buf.join("\n"))}</div>); buf = []; } };
+  for (const ln of lines) {
+    const m = ln.match(FIX_RE);
+    if (m && renderGate) {
+      const clean = ln.replace(new RegExp(FIX_RE.source, "g"), "").trimEnd();
+      if (clean) buf.push(clean);
+      flush();
+      const gate = renderGate(m[1]);
+      if (gate) out.push(<div key={"g" + out.length}>{gate}</div>);
+    } else {
+      buf.push(ln.replace(new RegExp(FIX_RE.source, "g"), "")); // 万一マッチ漏れした印は表示から除去
+    }
+  }
+  flush();
+  return out;
+}
+
+function AISections({ text, renderGate }) {
   return splitSections(text).map((sec, i) => (
     <div className="aisec" key={i} style={{ animationDelay: (i * 0.11) + "s" }}>
       {sec.h && <div className="aisec-h">{sec.h}</div>}
-      <div className="aisec-b">{renderMd(sec.body.join("\n"))}</div>
+      <div className="aisec-b">{renderGate ? renderBodyWithGates(sec.body.join("\n"), renderGate) : renderMd(sec.body.join("\n"))}</div>
     </div>
   ));
+}
+
+// AI診断の各項目「直すとどう良くなるか」の直後に差し込む“興味ある？→AIに相談”
+function InterestGate({ it, interest, setInterest, hasKey, onAsk, track, setGsel, setTab }) {
+  const st = interest[it.k];
+  const g = guideForItem(it);
+  return (
+    <div className="qintent ai">
+      {!st && (
+        <>
+          <div className="qi-q">👉 これ、興味ある？</div>
+          <div className="qi-btns">
+            <button className="ib yes" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "yes" })); track && track("interest", it.k); }}>🔥 興味ある</button>
+            <button className="ib no" onClick={() => setInterest((s) => ({ ...s, [it.k]: "no" }))}>😌 一旦保留</button>
+          </div>
+        </>
+      )}
+      {st === "yes" && (
+        <div className="qi-open">
+          {hasKey ? (
+            <button className="fx-consult" onClick={() => { track && track("consult_jump", it.k); onAsk(consultQuestionFor(it)); }}>💬 これについて、うちのお店に合わせてAIに相談 ›</button>
+          ) : (
+            <div className="fx-note">💡 設定でGeminiキーを入れると、この場でAIに相談できます。</div>
+          )}
+          <button className="fx-guide" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 ガイドで直し方を見る</button>
+        </div>
+      )}
+      {st === "no" && (
+        <div className="qi-skip">😌 一旦保留にしますね。<button className="qi-reopen" onClick={() => setInterest((s) => { const n = { ...s }; delete n[it.k]; return n; })}>やっぱり気になる</button></div>
+      )}
+    </div>
+  );
 }
 
 
