@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import "./globals.css";
-import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY } from "./data";
+import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY, consultQuestionFor, rivalQuestionFor } from "./data";
 
 // 用語解説（?ボタン → タップで表示、×で閉じる）
 function Info({ k, children }) {
@@ -137,6 +137,7 @@ export default function Page() {
   const [expired, setExpired] = useState(false);
   const [daysLeft, setDaysLeft] = useState(null);
   const [fs, setFs] = useState(1); // 文字サイズ倍率
+  const [pendingAsk, setPendingAsk] = useState(null); // 診断→AI相談へ渡す“自動で聞く”質問
 
   useEffect(() => { const v = parseFloat(localStorage.getItem("ml_fs") || "1") || 1; setFs(v); }, []);
   useEffect(() => { document.documentElement.style.setProperty("--fs", String(fs)); }, [fs]);
@@ -216,6 +217,8 @@ export default function Page() {
     fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ invite, type, detail }) }).catch(() => {});
   };
+  // 診断の各項目から「AIに相談」→ そのまま相談タブで自動質問（回答が始まる）
+  const askAI = (question) => { if (!question) return; setPendingAsk(question); setTab("ai"); };
   const trackedOpen = useRef(false);
   const trackedDiag = useRef(false);
   useEffect(() => { if (invite && !trackedOpen.current) { trackedOpen.current = true; track("open"); } }, [invite]);
@@ -282,8 +285,8 @@ export default function Page() {
           ))}
         </div>
       </div>
-      {tab === "diag" &&<Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} />}
-      {tab === "ai" && <Consult aiCreds={aiCreds} aiOn={aiMode} result={result} answered={answered} background={background} setTab={setTab} />}
+      {tab === "diag" &&<Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} onAsk={askAI} track={track} />}
+      {tab === "ai" && <Consult aiCreds={aiCreds} aiOn={aiMode} result={result} answered={answered} background={background} setTab={setTab} pendingAsk={pendingAsk} onConsumeAsk={() => setPendingAsk(null)} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
 
       <nav className="tabbar">
@@ -302,7 +305,7 @@ function Gear() {
   return <Link href="/settings" className="gear">⚙️</Link>;
 }
 
-function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiCreds, aiOn, background, setBackground, bgInfo, setBgInfo, aiDiag, runAIDiagnose }) {
+function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiCreds, aiOn, background, setBackground, bgInfo, setBgInfo, aiDiag, runAIDiagnose, onAsk, track }) {
   const total = DIAG_ITEMS.length;
   const done = answered >= 6;
   const allDone = answered >= total;
@@ -311,6 +314,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
   const [fetching, setFetching] = useState(false);
   const [perr, setPerr] = useState("");
   const [showInput, setShowInput] = useState(false);
+  const [interest, setInterest] = useState({}); // 弱点ごとの「気になる/いまはいい」
 
   // 収集情報カードの手入力（クチコミ点数・件数）を保存し、診断の背景も更新
   const setBgField = (field, val) => {
@@ -465,18 +469,54 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
             <div className="note">💡 設定でGeminiキーを入れると、<b>AIが「今できていること・足りないこと・直すとどうなるか」を診断・評価</b>します。</div>
           )}
 
-          <h2>弱点TOP3 → 直すと効くポイント</h2>
+          <h2>弱点TOP3 → 気になるものから動こう</h2>
           {result.weak.map((it) => {
             const g = GUIDE.find((x) => x.levers.some((l) => it.lev.includes(l))) || GUIDE[0];
+            const st = interest[it.k];
             return (
               <div className="weak fadein" key={it.k}>
                 <div className="h">⚠️ {it.q}</div>
                 {it.lev.map((l) => <span className="lvtag" key={l}>{LEVERS.find((x) => x.k === l).nm}</span>)}
                 <div className="gen">ここが弱いと「{it.lev.map((l) => LEVERS.find((x) => x.k === l).nm).join("・")}」の力が下がりやすくなります（一般的な傾向）。</div>
-                <button className="go" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 直し方をガイドで見る ›</button>
+
+                {!st && (
+                  <div className="intent">
+                    <div className="intent-q">👉 これ、良くしたい気持ちはありますか？</div>
+                    <div className="intent-btns">
+                      <button className="ib yes" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "yes" })); track && track("interest", it.k); }}>🔥 気になる</button>
+                      <button className="ib no" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "no" })); }}>いまはいい</button>
+                    </div>
+                  </div>
+                )}
+                {st === "yes" && (
+                  <div className="intent open">
+                    {hasKey && (
+                      <>
+                        <button className="go primary" onClick={() => { track && track("consult_jump", it.k); onAsk(consultQuestionFor(it)); }}>💬 うちの場合の“最初の一手”をAIに相談 ›</button>
+                        <button className="go" onClick={() => { track && track("rival", it.k); onAsk(rivalQuestionFor(result.weak)); }}>🏆 “選ばれてる他店”は何が違う？ ›</button>
+                      </>
+                    )}
+                    <button className="go ghost" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 直し方をガイドで見る ›</button>
+                  </div>
+                )}
+                {st === "no" && (
+                  <div className="intent open">
+                    <div className="intent-ok">OK！気が向いたらいつでも。まずは知るだけでも 👇</div>
+                    <button className="go ghost" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 直し方をガイドで見る ›</button>
+                  </div>
+                )}
               </div>
             );
           })}
+
+          {hasKey && (
+            <div className="rivalcard fadein">
+              <div className="rc-t">🏆 “選ばれてる他店”との違いを知る</div>
+              <div className="rc-d">うちより先に選ばれているお店の強み・理由がわかると、<b>取り入れる</b>のも<b>差別化する</b>のもラクになります。</div>
+              <button className="btn p" onClick={() => { track && track("rival", "all"); onAsk(rivalQuestionFor(result.weak)); }}>🔍 他店の強みをAIに聞いてみる ›</button>
+            </div>
+          )}
+
           <div className="note">効果は一般的傾向であり、成果を保証するものではありません。</div>
         </div>
       )}
@@ -584,7 +624,7 @@ function GuideScreen({ gsel, setGsel }) {
   );
 }
 
-function Consult({ aiCreds, aiOn, result, answered, background, setTab }) {
+function Consult({ aiCreds, aiOn, result, answered, background, setTab, pendingAsk, onConsumeAsk }) {
   const hasKey = aiOn;
   const done = answered >= 6;
   const [cmsgs, setCmsgs] = useState([]);
@@ -604,6 +644,15 @@ function Consult({ aiCreds, aiOn, result, answered, background, setTab }) {
     } catch { setCmsgs((m) => [...m, { role: "assistant", text: "⚠️ 通信エラー" }]); }
     setCbusy(false);
   };
+
+  // 診断から渡ってきた質問を、相談タブに来た時点で一度だけ自動送信（そのまま回答が始まる）
+  useEffect(() => {
+    if (!pendingAsk || !hasKey || cbusy) return;
+    const q = pendingAsk;
+    onConsumeAsk && onConsumeAsk();
+    cask(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAsk, hasKey]);
 
   const chips = done
     ? ["最優先の3手は？", "今日やることを教えて", "弱点の直し方を具体的に", "オーナー登録のやり方は？", "パフォーマンス（インサイト）とは？", "説明文の書き方の例は？", "クチコミ返信の例文は？"]

@@ -4,7 +4,7 @@ import { getEvents, getInvites, getDiagMap, ownerHash, storeReady } from "../../
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TYPES = { ai_diagnose: "AI総評", ai_chat: "AI相談", lookup: "リンク検索", open: "アクセス", diagnose_done: "診断完了", guide_view: "ガイド閲覧" };
+const TYPES = { ai_diagnose: "AI総評", ai_chat: "AI相談", lookup: "リンク検索", open: "アクセス", diagnose_done: "診断完了", guide_view: "ガイド閲覧", interest: "改善に興味", consult_jump: "項目を相談", rival: "他店比較" };
 
 export async function POST(request) {
   if (!storeReady()) return json({ error: "履歴ストアが未接続です（Vercelで Upstash Redis を追加してください）。", noStore: true });

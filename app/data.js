@@ -245,6 +245,18 @@ export function guideKeyForItem(it) {
   return g ? g.key : "basic";
 }
 
+// 弱点項目 → 「うちの場合どう直す？」のAI相談用・質問文（本人の言葉で・そのまま回答が始まる）
+export function consultQuestionFor(it) {
+  const g = GUIDE.find((x) => x.levers.some((l) => it.lev.includes(l))) || GUIDE[0];
+  return `診断で「${it.q}」が弱点でした。うちのお店の場合、「${g.title}」を良くするために、今日からできる具体的な最初の一手を3つ、手順つきで教えてください。専門用語は使わず、スマホだけでできる形でお願いします。`;
+}
+
+// 弱点をふまえて「うちより選ばれてる他店は何が違う？」を聞く質問文
+export function rivalQuestionFor(weakItems) {
+  const topics = (weakItems || []).map((it) => it.q).join("、") || "基本情報や写真・クチコミ";
+  return `うちのお店は今、Googleマップで「${topics}」あたりが弱いようです。近くの同じ業種で、うちより先に「選ばれている」お店は、Googleビジネスプロフィール（Googleマップ）の見せ方でどんな強み・情報の充実をしている傾向がありますか？よくある違いを挙げて、①うちが取り入れられる点 ②逆にうちが差別化できる点 の2つに分けて、専門用語なしで教えてください。断定ではなく一般的な傾向で構いません。`;
+}
+
 export function diagnose(answers) {
   const acc = { display: [], contact: [], visit: [], aio: [] };
   for (const it of DIAG_ITEMS) {
