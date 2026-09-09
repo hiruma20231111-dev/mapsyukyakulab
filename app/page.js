@@ -441,7 +441,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
 
       {done && (
         <div className="sec">
-          <SimCard biz={biz} setBiz={setBiz} levers={result.levers}
+          <SimCard biz={biz} setBiz={setBiz} levers={result.levers} answers={answers}
             rating={bgInfo && bgInfo.rating} reviews={bgInfo && bgInfo.reviewCount}
             aiStrength={extractRival(aiDiag.text)} />
 
@@ -726,8 +726,8 @@ function Consult({ aiCreds, aiOn, result, answered, background, setTab, pendingA
 }
 
 // FB② 1000人シミュレーション（「いまの状態」pill を置換）
-function SimCard({ biz, setBiz, levers, rating, reviews, aiStrength }) {
-  const sim = biz ? simulate(biz, levers, { rating, reviews }) : null;
+function SimCard({ biz, setBiz, levers, answers, rating, reviews, aiStrength }) {
+  const sim = biz ? simulate(biz, levers, { rating, reviews, answers }) : null;
   const pct = sim ? Math.max(1, Math.min(100, sim.sel / 10)) : 0;
   const strength = aiStrength || (sim && sim.strength);
   return (
@@ -750,8 +750,17 @@ function SimCard({ biz, setBiz, levers, rating, reviews, aiStrength }) {
           <div className="sim-bar"><i style={{ width: pct + "%" }} /></div>
           <div className="sim-pct">{(sim.sel / 10).toFixed(1)}%{sim.adjusted && <span className="sim-adj">（あなたの★・件数で補正）</span>}</div>
           {strength && <div className="sim-why"><b>選ばれてる他店：</b>{strength}{aiStrength && <span className="sim-ai">🤖</span>}</div>}
-          {sim.gain > 0 && (
-            <div className="sim-lift">🔧「{sim.bestLeverJP}」を強くすると <b>{sim.sel} → {sim.improved}人</b>（+{sim.gain}）／全部整えば最大 約{sim.ceiling}人</div>
+          {sim.lifts.length > 0 && (
+            <div className="sim-lift">
+              <div className="sim-lift-h">🔧 診断をもとに、直すと増えるところ</div>
+              {sim.lifts.map((l) => (
+                <div className="sim-lift-row" key={l.lever}>
+                  <div className="sim-lift-nm">「{l.leverJP}」{l.items.length > 0 && <span className="sim-lift-it">＝{l.items.join("・")}</span>}</div>
+                  <div className="sim-lift-g">{sim.sel}→{l.improved}人 <b>+{l.gain}</b></div>
+                </div>
+              ))}
+              <div className="sim-lift-ceil">✨ ぜんぶ整えば最大 約{sim.ceiling}人</div>
+            </div>
           )}
           <div className="sim-foot">※{sim.label}</div>
         </>

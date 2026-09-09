@@ -1,6 +1,19 @@
 // FB②「1000人シミュレーション」ロジック（事前DB simdb.json を引く。runtimeはAPI/検索なし）
 import simdb from "./simdb.json";
+import { DIAG_ITEMS, snsScore } from "./data";
 const { params = {}, cells = {}, narrative = {} } = simdb || {};
+
+// レバー(sim) → 診断レバー(data) 対応、および設問の短いラベル
+const L2DATA = { find: "display", choose: "contact", act: "visit", ai: "aio" };
+const ITEM_LABEL = { category: "カテゴリ", basic: "基本情報", photoCount: "写真の枚数", photoFresh: "写真の鮮度", post: "投稿", reviewCount: "クチコミ件数", reply: "クチコミ返信", menu: "メニュー", action: "予約導線", hp: "ホームページ", sns: "SNS" };
+// あるレバーに効く設問のうち、この店で“弱い”ものを短ラベルで返す（＝診断結果をもとに）
+function weakItemsFor(dataLever, answers) {
+  if (!answers) return [];
+  return DIAG_ITEMS.filter((it) => it.lev.includes(dataLever)).filter((it) => {
+    const v = it.multi ? snsScore(answers[it.k]) : answers[it.k];
+    return typeof v === "number" && v < 72;
+  }).map((it) => ITEM_LABEL[it.k] || it.k);
+}
 
 export const BIZ = [
   ["izakaya", "居酒屋・バー"], ["cafe", "カフェ・喫茶"], ["restaurant", "食堂・レストラン"],
@@ -68,22 +81,33 @@ function adjFactor(biz, chooseLevel, rating, reviews) {
   return clamp(1 + 0.6 * (num / den), 0.6, 1.5);
 }
 
-// メイン：業種＋診断(levers) → 表示データ
-export function simulate(biz, levers, { rating, reviews } = {}) {
+// メイン：業種＋診断(levers) → 表示データ。answersを渡すと「直すと」を診断項目つきで細かく出す
+const UP = { W: "M", M: "S" };
+export function simulate(biz, levers, { rating, reviews, answers } = {}) {
   if (!biz) return null;
   const st = stateFromLevers(levers);
   const cell = cells[keyOf(biz, st)];
   if (!cell) return null;
-  const f = adjFactor(biz, st.choose, rating, reviews);
-  // 補正は“現在の数字”だけに掛ける。“直すと/天井”はモデルの構造値そのまま（二重加算を避ける）
+  const f = clamp(adjFactor(biz, st.choose, rating, reviews), 0.7, 1.3); // 表示全体に同じ係数（内部整合）
   const sel = Math.max(1, Math.round(cell.sel * f));
-  const improved = Math.max(sel, cell.sel + (cell.bestGain || 0));
-  const bestLever = cell.bestLever || weakestLever(st);
+  // 各レバーを1段上げた時の伸び（＋その店で弱い診断項目）をランキング
+  const lifts = [];
+  for (const L of ["find", "choose", "act", "ai"]) {
+    if (!UP[st[L]]) continue;
+    const nc = cells[keyOf(biz, { ...st, [L]: UP[st[L]] })];
+    if (!nc) continue;
+    const improved = Math.max(sel, Math.round(nc.sel * f));
+    const gain = improved - sel;
+    if (gain <= 0) continue;
+    lifts.push({ lever: L, leverJP: LEVER_JP[L], gain, improved, items: weakItemsFor(L2DATA[L], answers).slice(0, 3) });
+  }
+  lifts.sort((a, b) => b.gain - a.gain);
+  const bestLever = (lifts[0] && lifts[0].lever) || weakestLever(st);
   return {
-    biz, state: st, sel, improved,
-    gain: Math.max(0, improved - sel),
+    biz, state: st, sel,
+    lifts: lifts.slice(0, 3),
+    ceiling: Math.max(sel, Math.round(bizCeiling(biz) * f)),
     bestLever, bestLeverJP: LEVER_JP[bestLever] || bestLever,
-    ceiling: Math.max(improved, bizCeiling(biz)),
     strength: MEO_STRENGTH[bestLever] || MEO_STRENGTH.choose,
     adjusted: f !== 1,
     label: (simdb.meta && simdb.meta.note) || "AIによる予測。実際のGoogle結果とは異なります。",
