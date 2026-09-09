@@ -138,6 +138,8 @@ export default function Page() {
   const [daysLeft, setDaysLeft] = useState(null);
   const [fs, setFs] = useState(1); // 文字サイズ倍率
   const [pendingAsk, setPendingAsk] = useState(null); // 診断→AI相談へ渡す“自動で聞く”質問
+  const [interest, setInterest] = useState({}); // 改善項目ごとの「興味ある/一旦後回し」
+  const [stepIdx, setStepIdx] = useState(0);    // 「ひとつずつ確認」の現在位置（タブ切替でも保持）
 
   useEffect(() => { const v = parseFloat(localStorage.getItem("ml_fs") || "1") || 1; setFs(v); }, []);
   useEffect(() => { document.documentElement.style.setProperty("--fs", String(fs)); }, [fs]);
@@ -285,7 +287,7 @@ export default function Page() {
           ))}
         </div>
       </div>
-      {tab === "diag" &&<Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} onAsk={askAI} track={track} />}
+      {tab === "diag" &&<Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} onAsk={askAI} track={track} interest={interest} setInterest={setInterest} stepIdx={stepIdx} setStepIdx={setStepIdx} />}
       {tab === "ai" && <Consult aiCreds={aiCreds} aiOn={aiMode} result={result} answered={answered} background={background} setTab={setTab} pendingAsk={pendingAsk} onConsumeAsk={() => setPendingAsk(null)} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
 
@@ -305,7 +307,7 @@ function Gear() {
   return <Link href="/settings" className="gear">⚙️</Link>;
 }
 
-function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiCreds, aiOn, background, setBackground, bgInfo, setBgInfo, aiDiag, runAIDiagnose, onAsk, track }) {
+function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiCreds, aiOn, background, setBackground, bgInfo, setBgInfo, aiDiag, runAIDiagnose, onAsk, track, interest, setInterest, stepIdx, setStepIdx }) {
   const total = DIAG_ITEMS.length;
   const done = answered >= 6;
   const allDone = answered >= total;
@@ -314,7 +316,6 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
   const [fetching, setFetching] = useState(false);
   const [perr, setPerr] = useState("");
   const [showInput, setShowInput] = useState(false);
-  const [interest, setInterest] = useState({}); // 弱点ごとの「気になる/いまはいい」
 
   // 収集情報カードの手入力（クチコミ点数・件数）を保存し、診断の背景も更新
   const setBgField = (field, val) => {
@@ -457,9 +458,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               )}
               {aiDiag.loading && <AILoading dialect={cfg.dialect} />}
               {aiDiag.err && <div className="verdict bad">⚠️ {aiDiag.err}</div>}
-              {aiDiag.text && <AISections text={aiDiag.text}
-                injectMatch={(h) => /足りて|不足|伸びしろ|課題/.test(h)}
-                interactive={<FixList items={improvementItems(answers)} interest={interest} setInterest={setInterest} hasKey={hasKey} onAsk={onAsk} track={track} setGsel={setGsel} setTab={setTab} />} />}
+              {aiDiag.text && <AISections text={aiDiag.text} />}
               {aiDiag.text && (
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn p" style={{ flex: 1, minWidth: 0 }} onClick={() => setTab("ai")}>💬 AIに相談する ›</button>
@@ -470,6 +469,10 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
           ) : (
             <div className="note">💡 設定でGeminiキーを入れると、<b>AIが「今できていること・足りないこと・直すとどうなるか」を診断・評価</b>します。</div>
           )}
+
+          <h2 style={{ marginTop: 20 }}>🎯 気になるところを、ひとつずつ</h2>
+          <Stepper items={improvementItems(answers)} interest={interest} setInterest={setInterest}
+            stepIdx={stepIdx} setStepIdx={setStepIdx} hasKey={hasKey} onAsk={onAsk} track={track} setGsel={setGsel} setTab={setTab} />
 
           <div className="note">効果は一般的傾向であり、成果を保証するものではありません。</div>
         </div>
@@ -736,64 +739,67 @@ function splitSections(text) {
   }
   return secs.filter((x) => x.h || x.body.join("").trim());
 }
-function AISections({ text, interactive, injectMatch }) {
-  const secs = splitSections(text);
-  let injected = false;
-  return (
-    <>
-      {secs.map((sec, i) => {
-        const hit = interactive && injectMatch && injectMatch(sec.h || "");
-        if (hit) injected = true;
-        return (
-          <div className="aisec" key={i} style={{ animationDelay: (i * 0.11) + "s" }}>
-            {sec.h && <div className="aisec-h">{sec.h}</div>}
-            <div className="aisec-b">{renderMd(sec.body.join("\n"))}</div>
-            {hit && interactive}
-          </div>
-        );
-      })}
-      {/* 見出しが見つからなかった場合の保険：全セクションの後ろに置く */}
-      {interactive && !injected && <div className="aisec"><div className="aisec-b">{interactive}</div></div>}
-    </>
-  );
+function AISections({ text }) {
+  return splitSections(text).map((sec, i) => (
+    <div className="aisec" key={i} style={{ animationDelay: (i * 0.11) + "s" }}>
+      {sec.h && <div className="aisec-h">{sec.h}</div>}
+      <div className="aisec-b">{renderMd(sec.body.join("\n"))}</div>
+    </div>
+  ));
 }
 
-// 「足りていないこと」の中に織り込む、項目ごとの“できてる？→AIに相談”（羅列せず、その場で答えさせる）
-function FixList({ items, interest, setInterest, hasKey, onAsk, track, setGsel, setTab }) {
-  if (!items || !items.length) return null;
+// 改善ポイントを“ひとつずつ”提示し、項目ごとに「興味ある/一旦後回し」を確認 → 興味ありならその場でAIに相談
+function Stepper({ items, interest, setInterest, stepIdx, setStepIdx, hasKey, onAsk, track, setGsel, setTab }) {
+  if (!items || !items.length) {
+    return <div className="note" style={{ background: "#e7f6f3", color: "#0b7d70" }}>🎉 大きな弱点は見当たりません！今の運用を続けつつ、気になることは「💬 AIに相談」からどうぞ。</div>;
+  }
+  const idx = Math.min(stepIdx, items.length - 1);
+  const it = items[idx];
+  const g = GUIDE.find((x) => x.levers.some((l) => it.lev.includes(l))) || GUIDE[0];
+  const st = interest[it.k];
+  const isLast = idx >= items.length - 1;
+  const answeredCount = items.filter((x) => interest[x.k]).length;
+  const next = () => { if (!isLast) setStepIdx(idx + 1); };
+  const prev = () => { if (idx > 0) setStepIdx(idx - 1); };
   return (
-    <div className="fixlist">
-      <div className="fix-lead">👇 この中で「気になる」を選ぶと、<b>その場でAIに相談</b>できます</div>
-      {items.map((it) => {
-        const g = GUIDE.find((x) => x.levers.some((l) => it.lev.includes(l))) || GUIDE[0];
-        const st = interest[it.k];
-        return (
-          <div className={"fixitem" + (st === "yes" ? " on" : "")} key={it.k}>
-            <div className="fx-h">⚠️ {it.q}</div>
-            <div className="fx-e">直すと「{it.lev.map((l) => LEVERS.find((x) => x.k === l).nm).join("・")}」が上がりやすい（一般的な傾向）</div>
-            {!st && (
-              <div className="fx-gate">
-                <span className="fx-q">これ、できてる？</span>
-                <button className="fchip yes" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "yes" })); track && track("interest", it.k); }}>🔥 気になる</button>
-                <button className="fchip no" onClick={() => setInterest((s) => ({ ...s, [it.k]: "no" }))}>できてる / 後で</button>
-              </div>
-            )}
-            {st === "yes" && (
-              <div className="fx-open">
-                {hasKey ? (
-                  <button className="fx-consult" onClick={() => { track && track("consult_jump", it.k); onAsk(consultQuestionFor(it)); }}>💬 この件を、うちのお店に合わせてAIに相談 ›</button>
-                ) : (
-                  <div className="fx-note">💡 設定でGeminiキーを入れると、この場でAIに相談できます。</div>
-                )}
-                <button className="fx-guide" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 ガイドで直し方を見る</button>
-              </div>
-            )}
-            {st === "no" && (
-              <button className="fx-guide solo" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 ガイドで直し方を見る ›</button>
-            )}
+    <div className="stepper">
+      <div className="st-top">
+        <span className="st-count">改善ポイント {idx + 1} / {items.length}</span>
+        <div className="st-dots">{items.map((x, i) => <span key={x.k} className={"st-dot" + (i === idx ? " now" : "") + (interest[x.k] ? " done" : "")} onClick={() => setStepIdx(i)} />)}</div>
+      </div>
+      <div className={"st-card fadein" + (st === "yes" ? " on" : "")} key={it.k}>
+        <div className="st-topic">{g.emo} {g.title} について</div>
+        <div className="st-h">⚠️ {it.q}</div>
+        <div className="st-tags">{it.lev.map((l) => <span className="lvtag" key={l}>{LEVERS.find((x) => x.k === l).nm}</span>)}</div>
+        <div className="st-e">直すと「{it.lev.map((l) => LEVERS.find((x) => x.k === l).nm).join("・")}」が上がりやすくなります（一般的な傾向）。</div>
+
+        {!st && (
+          <div className="st-ask">
+            <div className="st-q">👉 これ、興味ある？</div>
+            <div className="st-btns">
+              <button className="ib yes" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "yes" })); track && track("interest", it.k); }}>🔥 興味ある</button>
+              <button className="ib no" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "no" })); if (!isLast) setStepIdx(idx + 1); }}>😌 一旦後回し</button>
+            </div>
           </div>
-        );
-      })}
+        )}
+        {st === "yes" && (
+          <div className="st-open">
+            {hasKey ? (
+              <button className="fx-consult" onClick={() => { track && track("consult_jump", it.k); onAsk(consultQuestionFor(it)); }}>💬 この件を、うちのお店に合わせてAIに相談 ›</button>
+            ) : (
+              <div className="fx-note">💡 設定でGeminiキーを入れると、この場でAIに相談できます。</div>
+            )}
+            <button className="fx-guide" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 ガイドで直し方を見る</button>
+          </div>
+        )}
+        {st === "no" && <div className="st-skip">😌 一旦後回しにしますね。</div>}
+      </div>
+
+      <div className="st-nav">
+        <button className="st-prev" onClick={prev} disabled={idx === 0}>← 戻る</button>
+        {st && !isLast && <button className="st-next" onClick={next}>次へ ›</button>}
+        {isLast && st && <span className="st-fin">✓ ぜんぶ確認できました（{answeredCount}/{items.length}）</span>}
+      </div>
     </div>
   );
 }
