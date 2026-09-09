@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import "./globals.css";
 import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY, consultQuestionFor, guideForItem, snsScore } from "./data";
+import { BIZ, BIZ_JP, bizFromCategory, simulate } from "./sim";
 
 // 用語解説（?ボタン → タップで表示、×で閉じる）
 function Info({ k, children }) {
@@ -320,6 +321,14 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
   const [fetching, setFetching] = useState(false);
   const [perr, setPerr] = useState("");
   const [showInput, setShowInput] = useState(false);
+  const [biz, setBiz] = useState(null); // FB②シミュレーションの業種
+
+  useEffect(() => {
+    try { const saved = localStorage.getItem("ml_biz"); if (saved) { setBiz(saved); return; } } catch {}
+    const auto = bizFromCategory(bgInfo && bgInfo.category);
+    if (auto) setBiz(auto);
+  }, [bgInfo]);
+  const chooseBiz = (b) => { setBiz(b); try { localStorage.setItem("ml_biz", b); } catch {} };
 
   // 収集情報カードの手入力（クチコミ点数・件数）を保存し、診断の背景も更新
   const setBgField = (field, val) => {
@@ -432,21 +441,9 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
 
       {done && (
         <div className="sec">
-          <h2>いまの状態（強み・弱み）</h2>
-          <div style={{ fontWeight: 800, fontSize: 15, margin: "0 2px 8px" }}>{verdictText(result.total)}</div>
-          <div className="levpills">
-            {LEVERS.map((L, li) => {
-              const v = result.levers[L.k] ?? 0;
-              const q = v >= 72 ? { m: "◎", t: "強い", c: "var(--good)", bg: "#e7f6f3" } : v >= 48 ? { m: "○", t: "ふつう", c: "var(--warn)", bg: "#fff6e6" } : { m: "△", t: "伸びしろ", c: "var(--bad)", bg: "#fdece9" };
-              return (
-                <div className="levpill" key={L.k} style={{ background: q.bg, borderColor: q.c + "44", animationDelay: (li * 0.08) + "s" }}>
-                  <div className="lp-nm">{L.nm}</div>
-                  <div className="lp-q" style={{ color: q.c }}>{q.m} {q.t}</div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="note" style={{ marginBottom: 4 }}>※簡易セルフ診断。傾向で見てください（カンリー公式AI診断とは別）。</div>
+          <SimCard biz={biz} setBiz={chooseBiz} levers={result.levers}
+            rating={bgInfo && bgInfo.rating} reviews={bgInfo && bgInfo.reviewCount} />
+          <div className="note" style={{ marginBottom: 4 }}>※簡易セルフ診断の予測。傾向で見てください（カンリー公式AI診断とは別）。</div>
 
           {/* AIコンサルの総評（主役・セクションごとにカード表示） */}
           {hasKey ? (
@@ -725,6 +722,42 @@ function Consult({ aiCreds, aiOn, result, answered, background, setTab, pendingA
         </div>
       </div>
     </>
+  );
+}
+
+// FB② 1000人シミュレーション（「いまの状態」pill を置換）
+function SimCard({ biz, setBiz, levers, rating, reviews }) {
+  const sim = biz ? simulate(biz, levers, { rating, reviews }) : null;
+  const pct = sim ? Math.max(1, Math.min(100, sim.sel / 10)) : 0;
+  return (
+    <div className="simcard fadein">
+      <div className="sim-head">
+        <span className="sim-title">🎯 1000人シミュレーション</span>
+        <span className="sim-pred">AIの予測</span>
+      </div>
+      <div className="sim-biz">
+        <span className="sim-biz-l">業種</span>
+        <select value={biz || ""} onChange={(e) => setBiz(e.target.value)}>
+          <option value="" disabled>選んでください</option>
+          {BIZ.map(([s, j]) => <option key={s} value={s}>{j}</option>)}
+        </select>
+      </div>
+      {sim ? (
+        <>
+          <div className="sim-lead">1000人が「近くの{BIZ_JP[biz]}」で探したら…</div>
+          <div className="sim-num"><b>{sim.sel}</b><span> 人 / 1000人 が選択</span></div>
+          <div className="sim-bar"><i style={{ width: pct + "%" }} /></div>
+          <div className="sim-pct">{(sim.sel / 10).toFixed(1)}%{sim.adjusted && <span className="sim-adj">（あなたの★・件数で補正）</span>}</div>
+          {sim.strength && <div className="sim-why"><b>選ばれてる他店：</b>{sim.strength}</div>}
+          {sim.gain > 0 && (
+            <div className="sim-lift">🔧「{sim.bestLeverJP}」を強くすると <b>{sim.sel} → {sim.improved}人</b>（+{sim.gain}）／全部整えば最大 約{sim.ceiling}人</div>
+          )}
+          <div className="sim-foot">※{sim.label}</div>
+        </>
+      ) : (
+        <div className="sim-pickhint">👆 業種を選ぶと、あなたの診断をもとに予測が出ます</div>
+      )}
+    </div>
   );
 }
 
