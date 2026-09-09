@@ -443,7 +443,6 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
         <div className="sec">
           <SimCard biz={biz} setBiz={chooseBiz} levers={result.levers}
             rating={bgInfo && bgInfo.rating} reviews={bgInfo && bgInfo.reviewCount} />
-          <div className="note" style={{ marginBottom: 4 }}>※簡易セルフ診断の予測。傾向で見てください（カンリー公式AI診断とは別）。</div>
 
           {/* AIコンサルの総評（主役・セクションごとにカード表示） */}
           {hasKey ? (
