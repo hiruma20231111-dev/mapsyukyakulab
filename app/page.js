@@ -457,7 +457,9 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               )}
               {aiDiag.loading && <AILoading dialect={cfg.dialect} />}
               {aiDiag.err && <div className="verdict bad">⚠️ {aiDiag.err}</div>}
-              {aiDiag.text && <AISections text={aiDiag.text} />}
+              {aiDiag.text && <AISections text={aiDiag.text}
+                injectMatch={(h) => /足りて|不足|伸びしろ|課題/.test(h)}
+                interactive={<FixList items={improvementItems(answers)} interest={interest} setInterest={setInterest} hasKey={hasKey} onAsk={onAsk} track={track} setGsel={setGsel} setTab={setTab} />} />}
               {aiDiag.text && (
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn p" style={{ flex: 1, minWidth: 0 }} onClick={() => setTab("ai")}>💬 AIに相談する ›</button>
@@ -468,46 +470,6 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
           ) : (
             <div className="note">💡 設定でGeminiキーを入れると、<b>AIが「今できていること・足りないこと・直すとどうなるか」を診断・評価</b>します。</div>
           )}
-
-          <h2 style={{ marginTop: 18 }}>📌 足りていないこと（気になるものから相談）</h2>
-          <p style={{ fontSize: 13, margin: "0 2px 10px", color: "var(--mut)" }}>直すと効きやすい順です。<b>「これ気になる」と思ったものだけ</b>、その場でAIに相談できます。</p>
-          {improvementItems(answers).map((it) => {
-            const g = GUIDE.find((x) => x.levers.some((l) => it.lev.includes(l))) || GUIDE[0];
-            const st = interest[it.k];
-            return (
-              <div className="weak fadein" key={it.k}>
-                <div className="h">⚠️ {it.q}</div>
-                {it.lev.map((l) => <span className="lvtag" key={l}>{LEVERS.find((x) => x.k === l).nm}</span>)}
-                <div className="gen">直すと「{it.lev.map((l) => LEVERS.find((x) => x.k === l).nm).join("・")}」が上がりやすくなります（一般的な傾向）。</div>
-
-                {!st && (
-                  <div className="intent">
-                    <div className="intent-q">👉 これ、できていますか？／良くしたい気持ちはありますか？</div>
-                    <div className="intent-btns">
-                      <button className="ib yes" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "yes" })); track && track("interest", it.k); }}>🔥 気になる</button>
-                      <button className="ib no" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "no" })); }}>いまはいい</button>
-                    </div>
-                  </div>
-                )}
-                {st === "yes" && (
-                  <div className="intent open">
-                    {hasKey ? (
-                      <button className="go primary" onClick={() => { track && track("consult_jump", it.k); onAsk(consultQuestionFor(it)); }}>💬 この件を、うちのお店に合わせてAIに相談 ›</button>
-                    ) : (
-                      <div className="intent-ok">💡 設定でGeminiキーを入れると、この場でAIに相談できます。</div>
-                    )}
-                    <button className="go ghost" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 直し方をガイドで見る ›</button>
-                  </div>
-                )}
-                {st === "no" && (
-                  <div className="intent open">
-                    <div className="intent-ok">OK！気が向いたらいつでも。まずは知るだけでも 👇</div>
-                    <button className="go ghost" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 直し方をガイドで見る ›</button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
 
           <div className="note">効果は一般的傾向であり、成果を保証するものではありません。</div>
         </div>
@@ -774,13 +736,66 @@ function splitSections(text) {
   }
   return secs.filter((x) => x.h || x.body.join("").trim());
 }
-function AISections({ text }) {
-  return splitSections(text).map((sec, i) => (
-    <div className="aisec" key={i} style={{ animationDelay: (i * 0.11) + "s" }}>
-      {sec.h && <div className="aisec-h">{sec.h}</div>}
-      <div className="aisec-b">{renderMd(sec.body.join("\n"))}</div>
+function AISections({ text, interactive, injectMatch }) {
+  const secs = splitSections(text);
+  let injected = false;
+  return (
+    <>
+      {secs.map((sec, i) => {
+        const hit = interactive && injectMatch && injectMatch(sec.h || "");
+        if (hit) injected = true;
+        return (
+          <div className="aisec" key={i} style={{ animationDelay: (i * 0.11) + "s" }}>
+            {sec.h && <div className="aisec-h">{sec.h}</div>}
+            <div className="aisec-b">{renderMd(sec.body.join("\n"))}</div>
+            {hit && interactive}
+          </div>
+        );
+      })}
+      {/* 見出しが見つからなかった場合の保険：全セクションの後ろに置く */}
+      {interactive && !injected && <div className="aisec"><div className="aisec-b">{interactive}</div></div>}
+    </>
+  );
+}
+
+// 「足りていないこと」の中に織り込む、項目ごとの“できてる？→AIに相談”（羅列せず、その場で答えさせる）
+function FixList({ items, interest, setInterest, hasKey, onAsk, track, setGsel, setTab }) {
+  if (!items || !items.length) return null;
+  return (
+    <div className="fixlist">
+      <div className="fix-lead">👇 この中で「気になる」を選ぶと、<b>その場でAIに相談</b>できます</div>
+      {items.map((it) => {
+        const g = GUIDE.find((x) => x.levers.some((l) => it.lev.includes(l))) || GUIDE[0];
+        const st = interest[it.k];
+        return (
+          <div className={"fixitem" + (st === "yes" ? " on" : "")} key={it.k}>
+            <div className="fx-h">⚠️ {it.q}</div>
+            <div className="fx-e">直すと「{it.lev.map((l) => LEVERS.find((x) => x.k === l).nm).join("・")}」が上がりやすい（一般的な傾向）</div>
+            {!st && (
+              <div className="fx-gate">
+                <span className="fx-q">これ、できてる？</span>
+                <button className="fchip yes" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "yes" })); track && track("interest", it.k); }}>🔥 気になる</button>
+                <button className="fchip no" onClick={() => setInterest((s) => ({ ...s, [it.k]: "no" }))}>できてる / 後で</button>
+              </div>
+            )}
+            {st === "yes" && (
+              <div className="fx-open">
+                {hasKey ? (
+                  <button className="fx-consult" onClick={() => { track && track("consult_jump", it.k); onAsk(consultQuestionFor(it)); }}>💬 この件を、うちのお店に合わせてAIに相談 ›</button>
+                ) : (
+                  <div className="fx-note">💡 設定でGeminiキーを入れると、この場でAIに相談できます。</div>
+                )}
+                <button className="fx-guide" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 ガイドで直し方を見る</button>
+              </div>
+            )}
+            {st === "no" && (
+              <button className="fx-guide solo" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 ガイドで直し方を見る ›</button>
+            )}
+          </div>
+        );
+      })}
     </div>
-  ));
+  );
 }
 
 // Geminiのmarkdown回答を簡易レンダリング（**太字** / 見出し / 箇条書き）
