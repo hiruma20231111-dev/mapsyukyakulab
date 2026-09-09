@@ -103,8 +103,11 @@ export function simulate(biz, levers, { rating, reviews, answers } = {}) {
   }
   lifts.sort((a, b) => b.gain - a.gain);
   const bestLever = (lifts[0] && lifts[0].lever) || weakestLever(st);
+  // 来店見込み＝選択数 × 来店転換率（行動＝予約導線レバー由来）。DB/診断ベース
+  const VISIT_RATE = { S: 0.75, M: 0.58, W: 0.4 };
+  const visits = Math.round(sel * VISIT_RATE[st.act]);
   return {
-    biz, state: st, sel,
+    biz, state: st, sel, visits,
     lifts: lifts.slice(0, 3),
     ceiling: Math.max(sel, Math.round(bizCeiling(biz) * f)),
     bestLever, bestLeverJP: LEVER_JP[bestLever] || bestLever,

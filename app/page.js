@@ -252,7 +252,7 @@ export default function Page() {
       .sort((a, b) => a.v - b.v)
       .map(({ it }) => ({ k: it.k, q: it.q }));
     const sim = biz ? simulate(biz, result.levers, { rating: bgInfo && bgInfo.rating, reviews: bgInfo && bgInfo.reviewCount, answers }) : null;
-    const simInfo = sim ? { bizLabel: BIZ_JP[biz], sel: sim.sel, ceiling: sim.ceiling,
+    const simInfo = sim ? { bizLabel: BIZ_JP[biz], sel: sim.sel, visits: sim.visits, ceiling: sim.ceiling,
       lifts: sim.lifts.map((l) => ({ lever: l.leverJP, gain: l.gain, items: l.items })) } : undefined;
     try {
       const r = await fetch("/api/ai", {
@@ -753,6 +753,7 @@ function SimCard({ biz, setBiz, levers, answers, rating, reviews, aiStrength }) 
           <div className="sim-num"><b>{sim.sel}</b><span> 人 / 1000人 が選択</span></div>
           <div className="sim-bar"><i style={{ width: pct + "%" }} /></div>
           <div className="sim-pct">{(sim.sel / 10).toFixed(1)}%{sim.adjusted && <span className="sim-adj">（あなたの★・件数で補正）</span>}</div>
+          <div className="sim-visit">→ うち <b>約{sim.visits}人</b> が来店につながりそう<span className="sim-visit-n">（選択 × 予約導線）</span></div>
           {strength && <div className="sim-why"><b>選ばれてる他店：</b>{strength}{aiStrength && <span className="sim-ai">🤖</span>}</div>}
           {sim.lifts.length > 0 && (
             <div className="sim-lift">

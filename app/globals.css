@@ -102,6 +102,9 @@ a{color:var(--teal2);text-decoration:none}
 .sim-bar i{display:block;height:100%;background:linear-gradient(90deg,#12b39c,#8ff0dc);border-radius:8px;transition:width .6s ease}
 .sim-pct{font-size:11.5px;opacity:.85;margin-top:5px}
 .sim-adj{opacity:.7}
+.sim-visit{margin-top:9px;padding:8px 11px;background:rgba(143,240,220,.12);border:1px solid rgba(143,240,220,.28);border-radius:10px;font-size:13px;font-weight:700}
+.sim-visit b{color:#8ff0dc;font-size:15px}
+.sim-visit-n{font-weight:400;opacity:.7;font-size:11px;margin-left:5px}
 .sim-why{font-size:12.5px;line-height:1.6;margin-top:11px;background:rgba(255,255,255,.10);border-radius:10px;padding:9px 11px}
 .sim-why b{color:#8ff0dc}
 .sim-ai{margin-left:6px;font-size:11px;opacity:.85}
