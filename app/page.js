@@ -140,6 +140,13 @@ export default function Page() {
   const [fs, setFs] = useState(1); // 文字サイズ倍率
   const [pendingAsk, setPendingAsk] = useState(null); // 診断→AI相談へ渡す“自動で聞く”質問
   const [interest, setInterest] = useState({}); // 設問ごとの「興味ある/一旦後回し」（タブ切替でも保持）
+  const [biz, setBiz] = useState(null); // FB②シミュレーションの業種（タブ切替でも保持）
+  useEffect(() => {
+    try { const saved = localStorage.getItem("ml_biz"); if (saved) { setBiz(saved); return; } } catch {}
+    const auto = bizFromCategory(bgInfo && bgInfo.category);
+    if (auto) setBiz(auto);
+  }, [bgInfo]);
+  const chooseBiz = (b) => { setBiz(b); try { localStorage.setItem("ml_biz", b); } catch {} };
 
   useEffect(() => { const v = parseFloat(localStorage.getItem("ml_fs") || "1") || 1; setFs(v); }, []);
   useEffect(() => { document.documentElement.style.setProperty("--fs", String(fs)); }, [fs]);
@@ -248,7 +255,8 @@ export default function Page() {
       const r = await fetch("/api/ai", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...aiCreds, mode: "diagnose", background,
-          diagnosis: { total: result.total, grade: result.grade, levers: result.levers, answers: answersList }, weakItems }),
+          diagnosis: { total: result.total, grade: result.grade, levers: result.levers, answers: answersList }, weakItems,
+          bizLabel: biz ? BIZ_JP[biz] : undefined }),
       });
       const d = await r.json();
       if (!d.error && d.text) { try { localStorage.setItem("ml_aidiag", d.text); } catch {} }
@@ -292,7 +300,7 @@ export default function Page() {
           ))}
         </div>
       </div>
-      {tab === "diag" &&<Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} onAsk={askAI} track={track} interest={interest} setInterest={setInterest} />}
+      {tab === "diag" &&<Diag answers={answers} setAnswers={setAnswers} result={result} answered={answered} setTab={setTab} setGsel={setGsel} cfg={cfg} aiCreds={aiCreds} aiOn={aiMode} background={background} setBackground={setBackground} bgInfo={bgInfo} setBgInfo={setBgInfo} aiDiag={aiDiag} runAIDiagnose={runAIDiagnose} onAsk={askAI} track={track} interest={interest} setInterest={setInterest} biz={biz} setBiz={chooseBiz} />}
       {tab === "ai" && <Consult aiCreds={aiCreds} aiOn={aiMode} result={result} answered={answered} background={background} setTab={setTab} pendingAsk={pendingAsk} onConsumeAsk={() => setPendingAsk(null)} />}
       {tab === "guide" && <GuideScreen gsel={gsel} setGsel={setGsel} />}
 
@@ -312,7 +320,7 @@ function Gear() {
   return <Link href="/settings" className="gear">⚙️</Link>;
 }
 
-function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiCreds, aiOn, background, setBackground, bgInfo, setBgInfo, aiDiag, runAIDiagnose, onAsk, track, interest, setInterest }) {
+function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiCreds, aiOn, background, setBackground, bgInfo, setBgInfo, aiDiag, runAIDiagnose, onAsk, track, interest, setInterest, biz, setBiz }) {
   const total = DIAG_ITEMS.length;
   const done = answered >= 6;
   const allDone = answered >= total;
@@ -321,14 +329,6 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
   const [fetching, setFetching] = useState(false);
   const [perr, setPerr] = useState("");
   const [showInput, setShowInput] = useState(false);
-  const [biz, setBiz] = useState(null); // FB②シミュレーションの業種
-
-  useEffect(() => {
-    try { const saved = localStorage.getItem("ml_biz"); if (saved) { setBiz(saved); return; } } catch {}
-    const auto = bizFromCategory(bgInfo && bgInfo.category);
-    if (auto) setBiz(auto);
-  }, [bgInfo]);
-  const chooseBiz = (b) => { setBiz(b); try { localStorage.setItem("ml_biz", b); } catch {} };
 
   // 収集情報カードの手入力（クチコミ点数・件数）を保存し、診断の背景も更新
   const setBgField = (field, val) => {
@@ -441,8 +441,9 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
 
       {done && (
         <div className="sec">
-          <SimCard biz={biz} setBiz={chooseBiz} levers={result.levers}
-            rating={bgInfo && bgInfo.rating} reviews={bgInfo && bgInfo.reviewCount} />
+          <SimCard biz={biz} setBiz={setBiz} levers={result.levers}
+            rating={bgInfo && bgInfo.rating} reviews={bgInfo && bgInfo.reviewCount}
+            aiStrength={extractRival(aiDiag.text)} />
 
           {/* AIコンサルの総評（主役・セクションごとにカード表示） */}
           {hasKey ? (
@@ -458,7 +459,7 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               )}
               {aiDiag.loading && <AILoading dialect={cfg.dialect} />}
               {aiDiag.err && <div className="verdict bad">⚠️ {aiDiag.err}</div>}
-              {aiDiag.text && <AISections text={aiDiag.text} renderGate={(key) => {
+              {aiDiag.text && <AISections text={aiDiag.text.replace(/@@RIVAL:[\s\S]*?@@/g, "").trim()} renderGate={(key) => {
                 const it = DIAG_ITEMS.find((d) => d.k === key);
                 if (!it) return null;
                 return <InterestGate it={it} interest={interest} setInterest={setInterest} hasKey={hasKey} onAsk={onAsk} track={track} setGsel={setGsel} setTab={setTab} />;
@@ -725,9 +726,10 @@ function Consult({ aiCreds, aiOn, result, answered, background, setTab, pendingA
 }
 
 // FB② 1000人シミュレーション（「いまの状態」pill を置換）
-function SimCard({ biz, setBiz, levers, rating, reviews }) {
+function SimCard({ biz, setBiz, levers, rating, reviews, aiStrength }) {
   const sim = biz ? simulate(biz, levers, { rating, reviews }) : null;
   const pct = sim ? Math.max(1, Math.min(100, sim.sel / 10)) : 0;
+  const strength = aiStrength || (sim && sim.strength);
   return (
     <div className="simcard fadein">
       <div className="sim-head">
@@ -747,7 +749,7 @@ function SimCard({ biz, setBiz, levers, rating, reviews }) {
           <div className="sim-num"><b>{sim.sel}</b><span> 人 / 1000人 が選択</span></div>
           <div className="sim-bar"><i style={{ width: pct + "%" }} /></div>
           <div className="sim-pct">{(sim.sel / 10).toFixed(1)}%{sim.adjusted && <span className="sim-adj">（あなたの★・件数で補正）</span>}</div>
-          {sim.strength && <div className="sim-why"><b>選ばれてる他店：</b>{sim.strength}</div>}
+          {strength && <div className="sim-why"><b>選ばれてる他店：</b>{strength}{aiStrength && <span className="sim-ai">🤖</span>}</div>}
           {sim.gain > 0 && (
             <div className="sim-lift">🔧「{sim.bestLeverJP}」を強くすると <b>{sim.sel} → {sim.improved}人</b>（+{sim.gain}）／全部整えば最大 約{sim.ceiling}人</div>
           )}
@@ -775,6 +777,9 @@ function splitSections(text) {
   }
   return secs.filter((x) => x.h || x.body.join("").trim());
 }
+// AI診断の相乗り出力 @@RIVAL:<本文>@@ から、シミュ用のMEO他店文を取り出す
+function extractRival(text) { const m = String(text || "").match(/@@RIVAL:([\s\S]*?)@@/); return m ? m[1].trim() : null; }
+
 // AI出力の @@FIX:key@@ を検出して、その位置に興味ゲートを差し込みつつ本文をレンダリング
 const FIX_RE = /@@FIX:([a-zA-Z]+)@@/;
 function renderBodyWithGates(text, renderGate) {

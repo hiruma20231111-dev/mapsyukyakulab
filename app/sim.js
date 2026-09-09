@@ -10,6 +10,13 @@ export const BIZ = [
 ];
 export const BIZ_JP = Object.fromEntries(BIZ);
 export const LEVER_JP = { find: "見つかる", choose: "選ばれる", act: "行動", ai: "AI検索" };
+// 他店の強み＝MEOで手を打てる話に限定（外的要因＝営業時間帯・距離・立地には触れない）
+export const MEO_STRENGTH = {
+  find: "店名・カテゴリ・営業時間・説明といった基本情報をすき間なく正確に埋めていて、検索に出やすい状態をつくっています。",
+  choose: "写真を豊富に載せ、クチコミにこまめに返信していて、見た人が『ここにしよう』と選びやすくなっています。",
+  act: "予約リンク・電話・ウェブサイトの入口を分かりやすく整えていて、迷わせず来店・予約につなげています。",
+  ai: "メニューや説明を具体的に充実させ、情報の一貫性を高めていて、AIのおすすめにも拾われやすくしています。",
+};
 
 // GBPカテゴリ(自由文) → 業種slug 推定（当たらなければ null → 業種選択UIへ）
 const KW = [
@@ -77,7 +84,7 @@ export function simulate(biz, levers, { rating, reviews } = {}) {
     gain: Math.max(0, improved - sel),
     bestLever, bestLeverJP: LEVER_JP[bestLever] || bestLever,
     ceiling: Math.max(improved, bizCeiling(biz)),
-    strength: narrative[`${biz}|${bestLever}`] || narrative[`${biz}|choose`] || "",
+    strength: MEO_STRENGTH[bestLever] || MEO_STRENGTH.choose,
     adjusted: f !== 1,
     label: (simdb.meta && simdb.meta.note) || "AIによる予測。実際のGoogle結果とは異なります。",
   };
