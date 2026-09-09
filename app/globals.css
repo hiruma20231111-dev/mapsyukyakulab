@@ -83,11 +83,6 @@ a{color:var(--teal2);text-decoration:none}
 .weak .go.primary:hover{filter:brightness(1.04)}
 .weak .go.ghost{margin-top:2px;color:var(--mut);font-weight:700}
 
-/* 「選ばれてる他店との違いを知る」カード */
-.rivalcard{margin-top:12px;border:1px solid #f0d7a6;background:linear-gradient(160deg,#fff8ec,#fff);border-radius:12px;padding:14px;box-shadow:var(--sh)}
-.rc-t{font-size:14.5px;font-weight:800;color:#a5730f}
-.rc-d{font-size:12.5px;color:var(--mut);margin:6px 0 11px;line-height:1.6}
-
 .note{font-size:calc(12px*var(--fs));color:var(--mut);background:#f0f3f6;border-radius:9px;padding:9px 11px;margin-top:8px;line-height:1.6}
 
 .gdetail dt{font-weight:800;font-size:13px;margin-top:8px}

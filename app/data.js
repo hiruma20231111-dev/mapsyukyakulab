@@ -252,9 +252,21 @@ export function consultQuestionFor(it) {
 }
 
 // 弱点をふまえて「うちより選ばれてる他店は何が違う？」を聞く質問文
+// ※ FB②（1000人仮想客シミュレーション）とセットで再設計予定。現在UI未使用。
 export function rivalQuestionFor(weakItems) {
   const topics = (weakItems || []).map((it) => it.q).join("、") || "基本情報や写真・クチコミ";
   return `うちのお店は今、Googleマップで「${topics}」あたりが弱いようです。近くの同じ業種で、うちより先に「選ばれている」お店は、Googleビジネスプロフィール（Googleマップ）の見せ方でどんな強み・情報の充実をしている傾向がありますか？よくある違いを挙げて、①うちが取り入れられる点 ②逆にうちが差別化できる点 の2つに分けて、専門用語なしで教えてください。断定ではなく一般的な傾向で構いません。`;
+}
+
+// 「足りていないこと」＝回答が“強い(72)”未満の項目を、効きやすい順（点数の低い順）に返す
+export function improvementItems(answers, limit = 6) {
+  return DIAG_ITEMS
+    .filter((it) => answers[it.k] != null)
+    .map((it) => ({ it, v: it.multi ? snsScore(answers[it.k]) : answers[it.k] }))
+    .filter((x) => typeof x.v === "number" && x.v < 72)
+    .sort((a, b) => a.v - b.v)
+    .slice(0, limit)
+    .map((x) => x.it);
 }
 
 export function diagnose(answers) {

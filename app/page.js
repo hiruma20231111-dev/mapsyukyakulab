@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import "./globals.css";
-import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY, consultQuestionFor, rivalQuestionFor } from "./data";
+import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY, consultQuestionFor, improvementItems } from "./data";
 
 // 用語解説（?ボタン → タップで表示、×で閉じる）
 function Info({ k, children }) {
@@ -469,19 +469,20 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
             <div className="note">💡 設定でGeminiキーを入れると、<b>AIが「今できていること・足りないこと・直すとどうなるか」を診断・評価</b>します。</div>
           )}
 
-          <h2>弱点TOP3 → 気になるものから動こう</h2>
-          {result.weak.map((it) => {
+          <h2 style={{ marginTop: 18 }}>📌 足りていないこと（気になるものから相談）</h2>
+          <p style={{ fontSize: 13, margin: "0 2px 10px", color: "var(--mut)" }}>直すと効きやすい順です。<b>「これ気になる」と思ったものだけ</b>、その場でAIに相談できます。</p>
+          {improvementItems(answers).map((it) => {
             const g = GUIDE.find((x) => x.levers.some((l) => it.lev.includes(l))) || GUIDE[0];
             const st = interest[it.k];
             return (
               <div className="weak fadein" key={it.k}>
                 <div className="h">⚠️ {it.q}</div>
                 {it.lev.map((l) => <span className="lvtag" key={l}>{LEVERS.find((x) => x.k === l).nm}</span>)}
-                <div className="gen">ここが弱いと「{it.lev.map((l) => LEVERS.find((x) => x.k === l).nm).join("・")}」の力が下がりやすくなります（一般的な傾向）。</div>
+                <div className="gen">直すと「{it.lev.map((l) => LEVERS.find((x) => x.k === l).nm).join("・")}」が上がりやすくなります（一般的な傾向）。</div>
 
                 {!st && (
                   <div className="intent">
-                    <div className="intent-q">👉 これ、良くしたい気持ちはありますか？</div>
+                    <div className="intent-q">👉 これ、できていますか？／良くしたい気持ちはありますか？</div>
                     <div className="intent-btns">
                       <button className="ib yes" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "yes" })); track && track("interest", it.k); }}>🔥 気になる</button>
                       <button className="ib no" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "no" })); }}>いまはいい</button>
@@ -490,11 +491,10 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
                 )}
                 {st === "yes" && (
                   <div className="intent open">
-                    {hasKey && (
-                      <>
-                        <button className="go primary" onClick={() => { track && track("consult_jump", it.k); onAsk(consultQuestionFor(it)); }}>💬 うちの場合の“最初の一手”をAIに相談 ›</button>
-                        <button className="go" onClick={() => { track && track("rival", it.k); onAsk(rivalQuestionFor(result.weak)); }}>🏆 “選ばれてる他店”は何が違う？ ›</button>
-                      </>
+                    {hasKey ? (
+                      <button className="go primary" onClick={() => { track && track("consult_jump", it.k); onAsk(consultQuestionFor(it)); }}>💬 この件を、うちのお店に合わせてAIに相談 ›</button>
+                    ) : (
+                      <div className="intent-ok">💡 設定でGeminiキーを入れると、この場でAIに相談できます。</div>
                     )}
                     <button className="go ghost" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 直し方をガイドで見る ›</button>
                   </div>
@@ -508,14 +508,6 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               </div>
             );
           })}
-
-          {hasKey && (
-            <div className="rivalcard fadein">
-              <div className="rc-t">🏆 “選ばれてる他店”との違いを知る</div>
-              <div className="rc-d">うちより先に選ばれているお店の強み・理由がわかると、<b>取り入れる</b>のも<b>差別化する</b>のもラクになります。</div>
-              <button className="btn p" onClick={() => { track && track("rival", "all"); onAsk(rivalQuestionFor(result.weak)); }}>🔍 他店の強みをAIに聞いてみる ›</button>
-            </div>
-          )}
 
           <div className="note">効果は一般的傾向であり、成果を保証するものではありません。</div>
         </div>
