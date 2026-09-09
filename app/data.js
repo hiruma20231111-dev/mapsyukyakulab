@@ -196,8 +196,10 @@ export const SUCCESS_MODEL =
 export const DIAG_ITEMS = [
   { k: "category", q: "業種（カテゴリ）は正しく設定されている？",
     opts: [["ばっちり", 100], ["自信ない", 50], ["未設定/あいまい", 0]], lev: ["display", "aio"] },
-  { k: "basic", q: "営業時間・電話・住所・説明は最新？",
+  { k: "basic", q: "営業時間・電話・住所は最新？",
     opts: [["最新で正確", 100], ["一部古いかも", 50], ["古い/未整備", 0]], lev: ["display", "aio"] },
+  { k: "description", q: "ビジネスの説明文（お店紹介）は？",
+    opts: [["正しくしっかり記載", 100], ["ある程度記載", 65], ["数行程度", 35], ["記載なし", 0]], lev: ["aio", "display"] },
   { k: "photoCount", q: "写真の枚数は？",
     opts: [["21枚以上", 100], ["6〜20枚", 55], ["5枚以下", 15]], lev: ["display", "contact"] },
   { k: "photoFresh", q: "いちばん新しい写真はいつ頃？",
@@ -247,7 +249,7 @@ export function guideKeyForItem(it) {
 
 // 診断の各設問 → 対応するガイドの明示マップ（レバー一致だと別トピックを拾うため固定）
 const ITEM_GUIDE = {
-  category: "basic", basic: "basic", photoCount: "photo", photoFresh: "photo",
+  category: "basic", basic: "basic", description: "basic", photoCount: "photo", photoFresh: "photo",
   post: "post", reviewCount: "review", reply: "review", menu: "menu",
   action: "action", hp: "citation", sns: "citation",
 };

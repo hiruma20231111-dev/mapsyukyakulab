@@ -5,7 +5,7 @@ const { params = {}, cells = {}, narrative = {} } = simdb || {};
 
 // レバー(sim) → 診断レバー(data) 対応、および設問の短いラベル
 const L2DATA = { find: "display", choose: "contact", act: "visit", ai: "aio" };
-const ITEM_LABEL = { category: "カテゴリ", basic: "基本情報", photoCount: "写真の枚数", photoFresh: "写真の鮮度", post: "投稿", reviewCount: "クチコミ件数", reply: "クチコミ返信", menu: "メニュー", action: "予約導線", hp: "ホームページ", sns: "SNS" };
+const ITEM_LABEL = { category: "カテゴリ", basic: "基本情報", description: "説明文", photoCount: "写真の枚数", photoFresh: "写真の鮮度", post: "投稿", reviewCount: "クチコミ件数", reply: "クチコミ返信", menu: "メニュー", action: "予約導線", hp: "ホームページ", sns: "SNS" };
 // あるレバーに効く設問のうち、この店で“弱い”ものを短ラベルで返す（＝診断結果をもとに）
 function weakItemsFor(dataLever, answers) {
   if (!answers) return [];
@@ -33,7 +33,7 @@ export const MEO_STRENGTH = {
 
 // GBPカテゴリ(自由文) → 業種slug 推定（当たらなければ null → 業種選択UIへ）
 const KW = [
-  ["izakaya", ["居酒屋", "ダイニングバー", "バル", "スナック", "パブ", "ビアガーデン", "ホルモン", "もつ焼", "串"]],
+  ["izakaya", ["居酒屋", "ダイニングバー", "ダーツバー", "ショットバー", "スポーツバー", "ワインバー", "カクテルバー", "ガールズバー", "カラオケバー", "ダーツ", "バル", "スナック", "パブ", "ラウンジ", "ビアガーデン", "ホルモン", "もつ焼", "串", "酒場"]],
   ["cafe", ["カフェ", "喫茶", "コーヒー", "スイーツ", "ケーキ", "パン", "ベーカリー", "茶房", "珈琲"]],
   ["restaurant", ["レストラン", "食堂", "ラーメン", "定食", "焼肉", "そば", "蕎麦", "うどん", "寿司", "すし", "鮨", "中華", "洋食", "和食", "カレー", "弁当", "ピザ", "イタリア", "フレンチ", "焼き鳥", "焼鳥", "牛丼", "丼", "天ぷら", "うなぎ", "鰻", "鉄板", "お好み", "たこ焼", "ビストロ", "ダイニング"]],
   ["hair", ["美容室", "美容院", "ヘアサロン", "ヘアー", "ヘア", "理容", "床屋", "バーバー"]],

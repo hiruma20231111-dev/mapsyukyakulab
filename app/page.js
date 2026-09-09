@@ -251,12 +251,15 @@ export default function Page() {
       .filter((x) => typeof x.v === "number" && x.v < 72)
       .sort((a, b) => a.v - b.v)
       .map(({ it }) => ({ k: it.k, q: it.q }));
+    const sim = biz ? simulate(biz, result.levers, { rating: bgInfo && bgInfo.rating, reviews: bgInfo && bgInfo.reviewCount, answers }) : null;
+    const simInfo = sim ? { bizLabel: BIZ_JP[biz], sel: sim.sel, ceiling: sim.ceiling,
+      lifts: sim.lifts.map((l) => ({ lever: l.leverJP, gain: l.gain, items: l.items })) } : undefined;
     try {
       const r = await fetch("/api/ai", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...aiCreds, mode: "diagnose", background,
           diagnosis: { total: result.total, grade: result.grade, levers: result.levers, answers: answersList }, weakItems,
-          bizLabel: biz ? BIZ_JP[biz] : undefined }),
+          bizLabel: biz ? BIZ_JP[biz] : undefined, simInfo }),
       });
       const d = await r.json();
       if (!d.error && d.text) { try { localStorage.setItem("ml_aidiag", d.text); } catch {} }
@@ -441,10 +444,6 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
 
       {done && (
         <div className="sec">
-          <SimCard biz={biz} setBiz={setBiz} levers={result.levers} answers={answers}
-            rating={bgInfo && bgInfo.rating} reviews={bgInfo && bgInfo.reviewCount}
-            aiStrength={extractRival(aiDiag.text)} />
-
           {/* AIコンサルの総評（主役・セクションごとにカード表示） */}
           {hasKey ? (
             <>
@@ -475,6 +474,10 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
           ) : (
             <div className="note">💡 設定でGeminiキーを入れると、<b>AIが「今できていること・足りないこと・直すとどうなるか」を診断・評価</b>します。</div>
           )}
+
+          <SimCard biz={biz} setBiz={setBiz} levers={result.levers} answers={answers}
+            rating={bgInfo && bgInfo.rating} reviews={bgInfo && bgInfo.reviewCount}
+            aiStrength={extractRival(aiDiag.text)} />
 
           <div className="note">効果は一般的傾向であり、成果を保証するものではありません。</div>
         </div>
