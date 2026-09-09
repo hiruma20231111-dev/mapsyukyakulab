@@ -68,41 +68,22 @@ a{color:var(--teal2);text-decoration:none}
 .weak .gen{font-size:12px;color:var(--mut);margin-top:6px}
 .weak .go{margin-top:9px;font-size:12px;color:var(--teal2);font-weight:700;cursor:pointer;background:none;border:none;padding:0}
 
-/* 改善ポイントを“ひとつずつ”確認するステッパー */
-.stepper{margin-top:8px}
-.st-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.st-count{font-size:12px;font-weight:800;color:var(--mut)}
-.st-dots{display:flex;gap:6px}
-.st-dot{width:9px;height:9px;border-radius:50%;background:#dfe6ee;cursor:pointer;transition:transform .12s,background .15s}
-.st-dot.done{background:var(--teal)}
-.st-dot.now{transform:scale(1.35);background:var(--pin)}
-.st-card{border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:12px;padding:14px;background:#fff;box-shadow:var(--sh)}
-.st-card.on{border-left-color:var(--teal);background:linear-gradient(180deg,#f2faf8,#fff)}
-.st-topic{font-size:12px;font-weight:800;color:var(--teal2);letter-spacing:.02em}
-.st-h{font-weight:800;font-size:15.5px;color:var(--ink);margin-top:4px}
-.st-tags{margin-top:6px}
-.st-tags .lvtag{display:inline-block;font-size:10px;background:#fdece9;color:var(--pin);border-radius:6px;padding:2px 7px;margin:0 6px 0 0}
-.st-e{font-size:12.5px;color:var(--mut);margin-top:8px;line-height:1.6}
-.st-ask{margin-top:12px;border-top:1px dashed var(--line);padding-top:12px}
-.st-q{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:9px}
-.st-btns{display:flex;gap:8px}
-.ib{flex:1;border-radius:11px;padding:12px;font-size:13.5px;font-weight:800;cursor:pointer;border:1px solid var(--line);background:#fff;transition:transform .12s,border-color .15s,background .15s}
+/* 各設問の直下に出す“これ興味ある？→AIに相談”（弱い回答のときだけ） */
+.qintent{margin-top:11px;border-top:1px dashed var(--line);padding-top:11px}
+.qi-q{font-size:13.5px;font-weight:800;color:var(--ink);margin-bottom:9px}
+.qi-btns{display:flex;gap:8px}
+.ib{flex:1;border-radius:11px;padding:11px;font-size:13.5px;font-weight:800;cursor:pointer;border:1px solid var(--line);background:#fff;transition:transform .12s,border-color .15s,background .15s}
 .ib:active{transform:scale(.96)}
 .ib.yes{border-color:#f0b8b3;color:var(--pin);background:#fff6f4}
 .ib.yes:hover{background:#fdece9}
 .ib.no{color:var(--mut)}
-.st-open{display:flex;flex-direction:column;gap:8px;margin-top:12px;border-top:1px dashed var(--line);padding-top:12px}
-.st-skip{margin-top:12px;font-size:12.5px;color:var(--mut);font-weight:700}
+.qi-open{display:flex;flex-direction:column;gap:8px}
+.qi-skip{font-size:12.5px;color:var(--mut);font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.qi-reopen{background:none;border:none;color:var(--teal2);font-weight:800;font-size:12.5px;cursor:pointer;padding:0;text-decoration:underline}
 .fx-consult{display:block;width:100%;background:var(--grad-teal);color:#fff;border:none;border-radius:11px;padding:12px;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 6px 14px rgba(14,159,142,.24);text-align:left}
 .fx-consult:hover{filter:brightness(1.04)}
 .fx-guide{background:none;border:none;padding:0;font-size:12px;color:var(--mut);font-weight:700;cursor:pointer;text-align:left}
 .fx-note{font-size:12px;color:var(--mut);background:#f0f3f6;border-radius:8px;padding:8px 10px;font-weight:600}
-.st-nav{display:flex;align-items:center;gap:10px;margin-top:10px}
-.st-prev{background:none;border:none;font-size:12.5px;color:var(--mut);font-weight:700;cursor:pointer;padding:4px 0}
-.st-prev:disabled{opacity:.35;cursor:default}
-.st-next{margin-left:auto;background:#fff;border:1px solid var(--teal);color:var(--teal2);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:800;cursor:pointer}
-.st-next:hover{background:#f2faf8}
-.st-fin{margin-left:auto;font-size:12.5px;font-weight:800;color:var(--teal2)}
 
 .note{font-size:calc(12px*var(--fs));color:var(--mut);background:#f0f3f6;border-radius:9px;padding:9px 11px;margin-top:8px;line-height:1.6}
 

@@ -245,9 +245,20 @@ export function guideKeyForItem(it) {
   return g ? g.key : "basic";
 }
 
+// 診断の各設問 → 対応するガイドの明示マップ（レバー一致だと別トピックを拾うため固定）
+const ITEM_GUIDE = {
+  category: "basic", basic: "basic", photoCount: "photo", photoFresh: "photo",
+  post: "post", reviewCount: "review", reply: "review", menu: "menu",
+  action: "action", hp: "citation", sns: "citation",
+};
+export function guideForItem(it) {
+  const g = GUIDE.find((x) => x.key === ITEM_GUIDE[it.k]);
+  return g || GUIDE.find((x) => x.levers.some((l) => it.lev.includes(l))) || GUIDE[0];
+}
+
 // 弱点項目 → 「うちの場合どう直す？」のAI相談用・質問文（本人の言葉で・そのまま回答が始まる）
 export function consultQuestionFor(it) {
-  const g = GUIDE.find((x) => x.levers.some((l) => it.lev.includes(l))) || GUIDE[0];
+  const g = guideForItem(it);
   return `診断で「${it.q}」が弱点でした。うちのお店の場合、「${g.title}」を良くするために、今日からできる具体的な最初の一手を3つ、手順つきで教えてください。専門用語は使わず、スマホだけでできる形でお願いします。`;
 }
 
