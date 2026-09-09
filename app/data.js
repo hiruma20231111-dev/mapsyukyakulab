@@ -262,6 +262,11 @@ export function consultQuestionFor(it) {
   return `診断で「${it.q}」が弱点でした。うちのお店の場合、「${g.title}」を良くするために、今日からできる具体的な最初の一手を3つ、手順つきで教えてください。専門用語は使わず、スマホだけでできる形でお願いします。`;
 }
 
+// ガイドのテーマ（AI検索/サイテーション等）を良くする相談質問
+export function consultQuestionForTopic(g) {
+  return `診断で「${g.title}」に伸びしろがありました。うちのお店の場合、「${g.title}」を良くするために、今日からできる具体的な最初の一手を3つ、手順つきで教えてください。専門用語は使わず、スマホだけでできる形でお願いします。`;
+}
+
 // 弱点をふまえて「うちより選ばれてる他店は何が違う？」を聞く質問文
 // ※ FB②（1000人仮想客シミュレーション）とセットで再設計予定。現在UI未使用。
 export function rivalQuestionFor(weakItems) {

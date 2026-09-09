@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import "./globals.css";
-import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY, consultQuestionFor, guideForItem, snsScore } from "./data";
+import { GUIDE, LEVERS, SUCCESS_MODEL, DIAG_ITEMS, diagnose, GLOSSARY, consultQuestionFor, consultQuestionForTopic, guideForItem, snsScore } from "./data";
 import { BIZ, BIZ_JP, bizFromCategory, simulate } from "./sim";
 
 // 用語解説（?ボタン → タップで表示、×で閉じる）
@@ -461,8 +461,9 @@ function Diag({ answers, setAnswers, result, answered, setTab, setGsel, cfg, aiC
               {aiDiag.err && <div className="verdict bad">⚠️ {aiDiag.err}</div>}
               {aiDiag.text && <AISections text={aiDiag.text.replace(/@@RIVAL:[\s\S]*?@@/g, "").trim()} renderGate={(key) => {
                 const it = DIAG_ITEMS.find((d) => d.k === key);
-                if (!it) return null;
-                return <InterestGate it={it} interest={interest} setInterest={setInterest} hasKey={hasKey} onAsk={onAsk} track={track} setGsel={setGsel} setTab={setTab} />;
+                const topic = it ? null : GUIDE.find((g) => g.key === key);
+                if (!it && !topic) return null;
+                return <InterestGate it={it} topic={topic} interest={interest} setInterest={setInterest} hasKey={hasKey} onAsk={onAsk} track={track} setGsel={setGsel} setTab={setTab} />;
               }} />}
               {aiDiag.text && (
                 <div style={{ display: "flex", gap: 8 }}>
@@ -822,32 +823,34 @@ function AISections({ text, renderGate }) {
 }
 
 // AI診断の各項目「直すとどう良くなるか」の直後に差し込む“興味ある？→AIに相談”
-function InterestGate({ it, interest, setInterest, hasKey, onAsk, track, setGsel, setTab }) {
-  const st = interest[it.k];
-  const g = guideForItem(it);
+function InterestGate({ it, topic, interest, setInterest, hasKey, onAsk, track, setGsel, setTab }) {
+  const ikey = it ? it.k : topic.key;          // 興味マップ/トラッキングのキー
+  const gkey = it ? guideForItem(it).key : topic.key; // 📚ガイドのキー
+  const question = it ? consultQuestionFor(it) : consultQuestionForTopic(topic);
+  const st = interest[ikey];
   return (
     <div className="qintent ai">
       {!st && (
         <>
           <div className="qi-q">👉 これ、興味ある？</div>
           <div className="qi-btns">
-            <button className="ib yes" onClick={() => { setInterest((s) => ({ ...s, [it.k]: "yes" })); track && track("interest", it.k); }}>🔥 興味ある</button>
-            <button className="ib no" onClick={() => setInterest((s) => ({ ...s, [it.k]: "no" }))}>😌 一旦保留</button>
+            <button className="ib yes" onClick={() => { setInterest((s) => ({ ...s, [ikey]: "yes" })); track && track("interest", ikey); }}>🔥 興味ある</button>
+            <button className="ib no" onClick={() => setInterest((s) => ({ ...s, [ikey]: "no" }))}>😌 一旦保留</button>
           </div>
         </>
       )}
       {st === "yes" && (
         <div className="qi-open">
           {hasKey ? (
-            <button className="fx-consult" onClick={() => { track && track("consult_jump", it.k); onAsk(consultQuestionFor(it)); }}>💬 これについて、うちのお店に合わせてAIに相談 ›</button>
+            <button className="fx-consult" onClick={() => { track && track("consult_jump", ikey); onAsk(question); }}>💬 これについて、うちのお店に合わせてAIに相談 ›</button>
           ) : (
             <div className="fx-note">💡 設定でGeminiキーを入れると、この場でAIに相談できます。</div>
           )}
-          <button className="fx-guide" onClick={() => { setGsel(g.key); setTab("guide"); }}>📚 ガイドで直し方を見る</button>
+          <button className="fx-guide" onClick={() => { setGsel(gkey); setTab("guide"); }}>📚 ガイドで直し方を見る</button>
         </div>
       )}
       {st === "no" && (
-        <div className="qi-skip">😌 一旦保留にしますね。<button className="qi-reopen" onClick={() => setInterest((s) => { const n = { ...s }; delete n[it.k]; return n; })}>やっぱり気になる</button></div>
+        <div className="qi-skip">😌 一旦保留にしますね。<button className="qi-reopen" onClick={() => setInterest((s) => { const n = { ...s }; delete n[ikey]; return n; })}>やっぱり気になる</button></div>
       )}
     </div>
   );
